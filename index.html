@@ -778,11 +778,6 @@
                 <div class="welcome-message">
                     <h2 id="welcome-text">欢迎，专家医生！</h2>
                     <p>感谢您参与AI药物反应预测模型的评估工作</p>
-                    <div style="margin-top: 1rem; display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center;">
-                        <button class="btn" onclick="refreshQuestionnaires()" style="background: #28a745; color: white;">🔄 刷新问卷列表</button>
-                        <button class="btn" onclick="importSurveyData()" style="background: #17a2b8; color: white;">📥 导入问卷数据</button>
-                    </div>
-                    <div id="doctor-github-status" style="margin-top: 1rem; text-align: center; display: none;"></div>
                 </div>
                 
                 <div class="page-content">
@@ -1159,11 +1154,12 @@
                     </div>
 
                     <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
-                        <button class="btn btn-primary" onclick="exportResults()">导出结果数据</button>
-                        <button class="btn btn-secondary" onclick="clearAllData()">清空所有数据</button>
-                        <button class="btn btn-success" onclick="exportSurveyData()">导出问卷数据</button>
-                        <button class="btn" onclick="importSurveyData()" style="background: #17a2b8; color: white;">导入问卷数据</button>
-                        <input type="file" id="import-data" accept=".json" style="display: none;" onchange="handleImportData(event)">
+                        <button class="btn btn-primary" onclick="exportResults()">导出评估数据</button>
+                        <button class="btn btn-secondary" onclick="syncAllSurveys()">同步所有问卷</button>
+                        <button class="btn btn-secondary" onclick="clearLocalData()">清除本地数据</button>
+                        <div style="margin-left: auto; font-size: 0.9rem; color: #666;">
+                            数据源: <a href="${GITHUB_CONFIG.baseUrl}" target="_blank" style="color: #667eea;">GitHub仓库</a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1171,6 +1167,16 @@
     </div>
 
     <script>
+        // GitHub配置
+        const GITHUB_CONFIG = {
+            baseUrl: 'https://zhouyuru1205.github.io/OncoLLM/',
+            apiUrl: 'https://api.github.com/repos/zhouyuru1205/OncoLLM/contents/',
+            paths: {
+                breast: 'questionnaires/breast',
+                lung: 'questionnaires/lung'
+            }
+        };
+
         // 全局变量
         const userData = {
             currentUser: null,
@@ -1188,16 +1194,17 @@
 
         const surveyData = {
             ratings: {},
-            surveys: {
-                breast_cancer: [],
-                lung_cancer: []
+            githubSurveys: [], // GitHub上的问卷数据
+            loadingStatus: {
+                breast: false,
+                lung: false
             }
         };
 
         // 初始化
         document.addEventListener('DOMContentLoaded', () => {
             checkLogin();
-            initFileUpload();
+            initFileUpload(); // 保留以避免错误，但不执行实际功能
             
             // 监听表单变化
             document.addEventListener('change', (e) => {
@@ -1205,6 +1212,11 @@
                     updateProgress();
                 }
             });
+
+            // 显示系统信息
+            console.log('OncoLLM 临床评估系统已启动');
+            console.log('GitHub数据源:', GITHUB_CONFIG.baseUrl);
+            console.log('问卷路径:', GITHUB_CONFIG.paths);
         });
 
         // 检查登录状态
@@ -1231,108 +1243,50 @@
             document.getElementById('user-title').textContent = user.title + (user.specialty ? ' | ' + user.specialty : '');
             document.getElementById('welcome-text').textContent = `欢迎，${user.name} ${user.title}！`;
             
+            // 加载GitHub数据缓存
+            const cachedGitHubSurveys = localStorage.getItem('githubSurveys');
+            if (cachedGitHubSurveys) {
+                surveyData.githubSurveys = JSON.parse(cachedGitHubSurveys);
+            }
+            
             // 根据角色显示不同功能
             if (user.role === 'admin') {
                 document.getElementById('admin-nav').style.display = 'flex';
                 showPage('admin');
-                // 预加载统计数据和上传的问卷
+                // 预加载统计数据和GitHub问卷
                 loadStatistics();
-                loadUploadedSurveys();
-                loadGitHubConfig(); // 加载GitHub配置
+                loadCachedSurveys();
             } else {
                 document.getElementById('admin-nav').style.display = 'none';
                 showPage('surveys');
-                // 为普通用户加载问卷列表（包括GitHub问卷）
+                // 为普通用户加载问卷列表
                 loadDoctorSurveysList();
-                // 尝试从GitHub加载最新问卷
-                autoLoadFromGitHub();
             }
         }
 
-        // 自动从GitHub加载（给普通用户）
-        async function autoLoadFromGitHub() {
-            const config = JSON.parse(localStorage.getItem('githubConfig') || '{}');
+        // 加载缓存的GitHub问卷（管理员界面）
+        function loadCachedSurveys() {
+            const breastSurveys = surveyData.githubSurveys.filter(s => s.diseaseType === 'breast_cancer');
+            const lungSurveys = surveyData.githubSurveys.filter(s => s.diseaseType === 'lung_cancer');
             
-            if (config.repo) {
-                // 静默加载，不显示状态信息
-                try {
-                    // 🔧 这里也要正确处理路径
-                    const repoPath = config.path ? config.path.replace(/\/$/, '') + '/' : '';
-                    const apiUrl = `https://api.github.com/repos/${config.repo}/contents/${repoPath}`;
-                    const response = await fetch(apiUrl);
-                    
-                    if (response.ok) {
-                        const files = await response.json();
-                        const mdFiles = files.filter(file => 
-                            file.type === 'file' && 
-                            (file.name.endsWith('.md') || file.name.endsWith('.txt'))
-                        );
-                        
-                        if (mdFiles.length > 0) {
-                            const loadedSurveys = [];
-                            
-                            for (const file of mdFiles.slice(0, 10)) { // 限制最多10个文件，避免加载太久
-                                try {
-                                    const fileResponse = await fetch(file.download_url);
-                                    const fileContent = await fileResponse.text();
-                                    
-                                    const survey = parseQuestionnaireFile(fileContent, file.name);
-                                    if (survey) {
-                                        survey.id = 'github_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-                                        survey.source = 'github';
-                                        survey.githubUrl = file.download_url;
-                                        survey.githubPath = config.path || '根目录';
-                                        survey.uploadTime = new Date().toISOString();
-                                        survey.fileName = file.name;
-                                        survey.diseaseType = detectDiseaseType(file.name, fileContent, config.path);
-                                        loadedSurveys.push(survey);
-                                    }
-                                } catch (error) {
-                                    console.error(`解析文件 ${file.name} 时出错:`, error);
-                                }
-                            }
-                            
-                            if (loadedSurveys.length > 0) {
-                                const existingSurveys = JSON.parse(localStorage.getItem('uploadedSurveys') || '[]');
-                                const localSurveys = existingSurveys.filter(s => s.source !== 'github');
-                                const allSurveys = [...localSurveys, ...loadedSurveys];
-                                localStorage.setItem('uploadedSurveys', JSON.stringify(allSurveys));
-                                
-                                // 刷新医生界面
-                                loadDoctorSurveysList();
-                            }
-                        }
-                    }
-                } catch (error) {
-                    console.error('自动加载GitHub问卷失败:', error);
-                    // 静默失败，不影响用户体验
-                }
+            if (breastSurveys.length > 0) {
+                displayGitHubSurveys(breastSurveys, 'breast_cancer');
             }
-        }
-
-        // 加载已上传的问卷（管理员界面）
-        function loadUploadedSurveys() {
-            const surveys = JSON.parse(localStorage.getItem('uploadedSurveys') || '[]');
             
-            // 清空现有显示
-            const breastContainer = document.querySelector('#breast-surveys');
-            const lungContainer = document.querySelector('#lung-surveys');
-            if (breastContainer) breastContainer.innerHTML = '';
-            if (lungContainer) lungContainer.innerHTML = '';
+            if (lungSurveys.length > 0) {
+                displayGitHubSurveys(lungSurveys, 'lung_cancer');
+            }
             
-            // 显示所有上传的问卷
-            surveys.forEach(survey => {
-                displayUploadedSurvey(survey, survey.diseaseType);
-            });
-            
-            // 如果没有上传的问卷，显示提示
-            if (surveys.length === 0) {
+            // 如果没有缓存数据，显示同步提示
+            if (surveyData.githubSurveys.length === 0) {
+                const breastContainer = document.querySelector('#breast-surveys');
+                const lungContainer = document.querySelector('#lung-surveys');
+                
                 [breastContainer, lungContainer].forEach(container => {
                     if (container) {
                         container.innerHTML = `
                             <div style="text-align: center; padding: 2rem; color: #666;">
-                                <p>暂无上传的问卷</p>
-                                <p style="font-size: 0.9rem;">请点击上方的上传区域添加问卷文件</p>
+                                <p>点击上方"同步问卷"从GitHub加载最新问卷文件</p>
                             </div>
                         `;
                     }
@@ -1342,7 +1296,15 @@
 
         // 为医生用户加载问卷列表
         function loadDoctorSurveysList() {
-            const surveys = JSON.parse(localStorage.getItem('uploadedSurveys') || '[]');
+            // 优先使用GitHub数据，如果没有则使用本地上传的数据作为fallback
+            let surveys = surveyData.githubSurveys.slice();
+            
+            // 如果没有GitHub数据，尝试使用本地数据（向后兼容）
+            if (surveys.length === 0) {
+                const localSurveys = JSON.parse(localStorage.getItem('uploadedSurveys') || '[]');
+                surveys = localSurveys;
+            }
+            
             const completedSurveys = JSON.parse(localStorage.getItem('surveyResults') || '[]');
             
             // 创建已完成问卷的映射（根据患者ID）
@@ -1389,7 +1351,8 @@
                             <div style="text-align: center; padding: 3rem; color: #666;">
                                 <div style="font-size: 3rem; margin-bottom: 1rem;">📋</div>
                                 <h3>暂无可填写的问卷</h3>
-                                <p>管理员尚未上传问卷，请稍后再来查看。</p>
+                                <p>管理员尚未同步GitHub问卷，请稍后再来查看。</p>
+                                <p style="font-size: 0.9rem; color: #999;">问卷数据来源: ${GITHUB_CONFIG.baseUrl}</p>
                             </div>
                         `;
                     }
@@ -1409,116 +1372,7 @@
             }
         }
 
-        // 刷新问卷列表（给医生用户）
-        async function refreshQuestionnaires() {
-            const statusDiv = document.getElementById('doctor-github-status');
-            if (statusDiv) {
-                statusDiv.style.display = 'block';
-                statusDiv.textContent = '🔄 正在刷新问卷列表...';
-                statusDiv.style.background = '#cce7ff';
-                statusDiv.style.color = '#004085';
-                statusDiv.style.border = '1px solid #bee5eb';
-                statusDiv.style.padding = '0.5rem';
-                statusDiv.style.borderRadius = '4px';
-            }
-            
-            const config = JSON.parse(localStorage.getItem('githubConfig') || '{}');
-            
-            if (config.repo) {
-                try {
-                    await autoLoadFromGitHub();
-                    if (statusDiv) {
-                        statusDiv.textContent = '✅ 问卷列表已更新';
-                        statusDiv.style.background = '#d4edda';
-                        statusDiv.style.color = '#155724';
-                        statusDiv.style.border = '1px solid #c3e6cb';
-                    }
-                } catch (error) {
-                    if (statusDiv) {
-                        statusDiv.textContent = '❌ 刷新失败，请检查网络连接';
-                        statusDiv.style.background = '#f8d7da';
-                        statusDiv.style.color = '#721c24';
-                        statusDiv.style.border = '1px solid #f5c6cb';
-                    }
-                }
-            } else {
-                // 只刷新本地数据
-                loadDoctorSurveysList();
-                if (statusDiv) {
-                    statusDiv.textContent = '✅ 本地问卷列表已刷新';
-                    statusDiv.style.background = '#d4edda';
-                    statusDiv.style.color = '#155724';
-                    statusDiv.style.border = '1px solid #c3e6cb';
-                }
-            }
-            
-            // 3秒后隐藏状态
-            setTimeout(() => {
-                if (statusDiv) {
-                    statusDiv.style.display = 'none';
-                }
-            }, 3000);
-        }
-
-        // 为医生显示问卷卡片（增强版）
-        function displayDoctorSurveyCard(survey, container, isCompleted = false) {
-            if (!container) return;
-            
-            const patientInfo = survey.patientInfo || {};
-            const drugs = Array.isArray(survey.drugs) ? survey.drugs : [survey.drug || survey.drugs];
-            const drugsText = drugs.filter(d => d).join(' + ') || '未知药物';
-            
-            const surveyCard = document.createElement('div');
-            surveyCard.className = `survey-card ${isCompleted ? 'completed' : ''}`;
-            surveyCard.onclick = () => openUploadedSurvey(survey.id);
-            
-            // 构建详细信息
-            let detailsHtml = `
-                <strong>患者ID:</strong> ${survey.patientId}<br>
-                <strong>治疗药物:</strong> ${drugsText}<br>
-            `;
-            
-            // 基本信息
-            if (patientInfo.gender || patientInfo.age) {
-                detailsHtml += `<strong>性别:</strong> ${patientInfo.gender || '未知'} | <strong>年龄:</strong> ${patientInfo.age || '未知'}<br>`;
-            }
-            
-            // 诊断信息（简化显示）
-            if (patientInfo.diagnosis) {
-                // 截取诊断的主要部分
-                const diagnosisShort = patientInfo.diagnosis.split('|')[0].trim();
-                detailsHtml += `<strong>诊断:</strong> ${diagnosisShort}<br>`;
-            }
-            
-            // 分期信息
-            if (patientInfo.stage) {
-                detailsHtml += `<strong>分期:</strong> ${patientInfo.stage}`;
-            }
-            
-            // HR/HER2状态（简化）
-            if (patientInfo.hrStatus && patientInfo.her2Status) {
-                detailsHtml += ` | <strong>HR:</strong> ${patientInfo.hrStatus} <strong>HER2:</strong> ${patientInfo.her2Status}`;
-            }
-            
-            // 添加来源标识
-            if (survey.source === 'github') {
-                detailsHtml += '<br><small style="color: #28a745;">📦 来自GitHub</small>';
-            }
-            
-            surveyCard.innerHTML = `
-                <div class="card-header">
-                    <div class="card-title">${survey.title || '问卷'}</div>
-                    <div class="card-status ${isCompleted ? 'status-completed' : 'status-pending'}">
-                        ${isCompleted ? '已完成' : '待完成'}
-                    </div>
-                </div>
-                <div class="card-info">
-                    ${detailsHtml}
-                </div>
-            `;
-            
-            container.appendChild(surveyCard);
-        }
+        // 为医生显示问卷卡片
         function displayDoctorSurveyCard(survey, container, isCompleted = false) {
             if (!container) return;
             
@@ -1775,7 +1629,239 @@
             }
         }
 
-        // 创建测试问卷
+        // 从GitHub同步问卷
+        async function syncGitHubSurveys(diseaseType) {
+            if (userData.currentUser.role !== 'admin') {
+                alert('只有管理员可以同步问卷！');
+                return;
+            }
+            
+            const pathKey = diseaseType === 'breast' ? 'breast' : 'lung';
+            const displayType = diseaseType === 'breast' ? 'breast_cancer' : 'lung_cancer';
+            
+            if (surveyData.loadingStatus[pathKey]) {
+                alert('正在同步中，请稍候...');
+                return;
+            }
+            
+            surveyData.loadingStatus[pathKey] = true;
+            
+            try {
+                // 显示加载状态
+                const container = document.querySelector(`#${displayType.replace('_', '-')}-surveys`);
+                if (container) {
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 3rem; color: #666;">
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">🔄</div>
+                            <h3>正在从GitHub同步问卷...</h3>
+                            <p>请稍候，正在加载问卷文件</p>
+                        </div>
+                    `;
+                }
+                
+                const surveys = await fetchGitHubSurveys(pathKey);
+                
+                // 更新本地存储
+                const allSurveys = surveyData.githubSurveys.filter(s => s.diseaseType !== displayType);
+                allSurveys.push(...surveys);
+                surveyData.githubSurveys = allSurveys;
+                localStorage.setItem('githubSurveys', JSON.stringify(surveyData.githubSurveys));
+                
+                // 更新显示
+                displayGitHubSurveys(surveys, displayType);
+                
+                // 更新统计
+                loadStatistics();
+                
+                alert(`成功同步 ${surveys.length} 个${diseaseType === 'breast' ? '乳腺癌' : '肺癌'}问卷！`);
+                
+            } catch (error) {
+                console.error('同步GitHub问卷失败:', error);
+                alert(`同步失败: ${error.message}`);
+                
+                // 显示错误状态
+                const container = document.querySelector(`#${displayType.replace('_', '-')}-surveys`);
+                if (container) {
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 3rem; color: #dc3545;">
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">❌</div>
+                            <h3>同步失败</h3>
+                            <p>${error.message}</p>
+                            <button class="btn btn-primary" onclick="syncGitHubSurveys('${diseaseType}')">重试</button>
+                        </div>
+                    `;
+                }
+            } finally {
+                surveyData.loadingStatus[pathKey] = false;
+            }
+        }
+
+        // 获取GitHub问卷数据
+        async function fetchGitHubSurveys(diseaseType) {
+            const path = GITHUB_CONFIG.paths[diseaseType];
+            
+            try {
+                // 首先尝试使用GitHub API获取文件列表
+                const apiUrl = GITHUB_CONFIG.apiUrl + path;
+                const response = await fetch(apiUrl);
+                
+                if (!response.ok) {
+                    throw new Error(`GitHub API请求失败: ${response.status}`);
+                }
+                
+                const files = await response.json();
+                const surveys = [];
+                
+                // 过滤出.md文件
+                const mdFiles = files.filter(file => file.name.endsWith('.md') && file.type === 'file');
+                
+                // 并行获取文件内容
+                const filePromises = mdFiles.map(async (file) => {
+                    try {
+                        const contentUrl = `${GITHUB_CONFIG.baseUrl}${path}/${file.name}`;
+                        const contentResponse = await fetch(contentUrl);
+                        
+                        if (!contentResponse.ok) {
+                            console.warn(`无法获取文件 ${file.name}: ${contentResponse.status}`);
+                            return null;
+                        }
+                        
+                        const content = await contentResponse.text();
+                        const survey = parseQuestionnaireFile(content, file.name);
+                        
+                        if (survey) {
+                            survey.id = `github_${diseaseType}_${file.name.replace('.md', '')}`;
+                            survey.diseaseType = diseaseType === 'breast' ? 'breast_cancer' : 'lung_cancer';
+                            survey.fileName = file.name;
+                            survey.source = 'github';
+                            survey.lastSync = new Date().toISOString();
+                            return survey;
+                        }
+                    } catch (error) {
+                        console.warn(`处理文件 ${file.name} 失败:`, error);
+                        return null;
+                    }
+                });
+                
+                const results = await Promise.all(filePromises);
+                surveys.push(...results.filter(survey => survey !== null));
+                
+                return surveys;
+                
+            } catch (error) {
+                // 如果GitHub API失败，尝试使用已知的文件名（fallback方案）
+                console.warn('GitHub API失败，尝试fallback方案:', error);
+                return await fallbackFetchSurveys(diseaseType);
+            }
+        }
+
+        // Fallback方案：使用预定义的文件列表
+        async function fallbackFetchSurveys(diseaseType) {
+            const path = GITHUB_CONFIG.paths[diseaseType];
+            
+            // 这里可以预定义一些已知的文件名，或者让用户手动指定
+            // 作为演示，我们先返回空数组，实际使用时可以根据需要添加已知文件
+            const knownFiles = [
+                // 如果您知道具体的文件名，可以在这里列出
+                // 例如: 'Questionnaire_CAPECITABINE_P-0000597.md'
+            ];
+            
+            const surveys = [];
+            
+            for (const fileName of knownFiles) {
+                try {
+                    const contentUrl = `${GITHUB_CONFIG.baseUrl}${path}/${fileName}`;
+                    const response = await fetch(contentUrl);
+                    
+                    if (response.ok) {
+                        const content = await response.text();
+                        const survey = parseQuestionnaireFile(content, fileName);
+                        
+                        if (survey) {
+                            survey.id = `github_${diseaseType}_${fileName.replace('.md', '')}`;
+                            survey.diseaseType = diseaseType === 'breast' ? 'breast_cancer' : 'lung_cancer';
+                            survey.fileName = fileName;
+                            survey.source = 'github';
+                            survey.lastSync = new Date().toISOString();
+                            surveys.push(survey);
+                        }
+                    }
+                } catch (error) {
+                    console.warn(`获取文件 ${fileName} 失败:`, error);
+                }
+            }
+            
+            if (surveys.length === 0) {
+                throw new Error('无法从GitHub获取问卷文件。请检查网络连接或GitHub仓库设置。');
+            }
+            
+            return surveys;
+        }
+
+        // 显示GitHub问卷
+        function displayGitHubSurveys(surveys, diseaseType) {
+            const containerSelector = `#${diseaseType.replace('_', '-')}-surveys`;
+            const container = document.querySelector(containerSelector);
+            
+            if (!container) return;
+            
+            if (surveys.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 3rem; color: #666;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">📋</div>
+                        <h3>暂无问卷</h3>
+                        <p>该疾病类型下暂时没有问卷文件</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = '';
+            
+            surveys.forEach(survey => {
+                displayUploadedSurvey(survey, diseaseType);
+            });
+        }
+
+        // 清除本地数据
+        function clearLocalData() {
+            if (userData.currentUser.role !== 'admin') {
+                alert('只有管理员可以清除本地数据！');
+                return;
+            }
+            
+            if (confirm('确定要清除所有本地测试数据吗？这将删除：\n- 本地上传的问卷\n- 问卷填写结果\n- 缓存的GitHub数据\n\n用户注册信息将保留。\n\n此操作不可恢复！')) {
+                if (confirm('请再次确认：您真的要删除所有本地数据吗？')) {
+                    // 清除各种本地数据
+                    localStorage.removeItem('uploadedSurveys');
+                    localStorage.removeItem('githubSurveys');
+                    localStorage.removeItem('surveyResults');
+                    localStorage.removeItem('totalSurveys');
+                    
+                    // 重置全局变量
+                    surveyData.githubSurveys = [];
+                    
+                    // 刷新页面显示
+                    const breastContainer = document.querySelector('#breast-surveys');
+                    const lungContainer = document.querySelector('#lung-surveys');
+                    
+                    [breastContainer, lungContainer].forEach(container => {
+                        if (container) {
+                            container.innerHTML = `
+                                <div style="text-align: center; padding: 2rem; color: #666;">
+                                    <p>本地数据已清除，点击上方"同步问卷"重新加载GitHub数据</p>
+                                </div>
+                            `;
+                        }
+                    });
+                    
+                    // 刷新统计
+                    loadStatistics();
+                    
+                    alert('本地数据已清除完毕！');
+                }
+            }
+        }
         function createTestSurvey(diseaseType) {
             if (userData.currentUser.role !== 'admin') {
                 alert('只有管理员可以创建测试问卷！');
@@ -2160,72 +2246,74 @@
             try {
                 const surveyResults = JSON.parse(localStorage.getItem('surveyResults') || '[]');
                 const users = JSON.parse(localStorage.getItem('users') || '[]');
-                const uploadedSurveys = JSON.parse(localStorage.getItem('uploadedSurveys') || '[]');
                 
-                // 从上传的问卷数量获取真实总数
-                const totalUploaded = uploadedSurveys.length;
+                // 使用GitHub数据或本地数据
+                let surveysList = surveyData.githubSurveys.slice();
+                let dataSource = 'GitHub';
+                
+                if (surveysList.length === 0) {
+                    surveysList = JSON.parse(localStorage.getItem('uploadedSurveys') || '[]');
+                    dataSource = '本地存储';
+                }
+                
+                const totalSurveys = surveysList.length;
                 const completed = surveyResults.length;
-                const inProgress = Math.max(0, Math.floor(totalUploaded * 0.2));
-                const pending = Math.max(0, totalUploaded - completed - inProgress);
+                const inProgress = Math.max(0, Math.floor(totalSurveys * 0.2));
+                const pending = Math.max(0, totalSurveys - completed - inProgress);
                 
                 const results = {
+                    metadata: {
+                        exportTime: new Date().toISOString(),
+                        exportedBy: (userData.currentUser && userData.currentUser.name) || '系统管理员',
+                        dataSource: dataSource,
+                        githubRepository: dataSource === 'GitHub' ? GITHUB_CONFIG.baseUrl : null,
+                        version: '2.0.0'
+                    },
                     summary: {
-                        totalSurveys: totalUploaded,
+                        totalSurveys: totalSurveys,
                         completed: completed,
                         inProgress: inProgress,
                         pending: pending,
                         totalUsers: users.length,
-                        completionRate: totalUploaded > 0 ? ((completed / totalUploaded) * 100).toFixed(1) + '%' : '0%'
+                        completionRate: totalSurveys > 0 ? ((completed / totalSurveys) * 100).toFixed(1) + '%' : '0%'
                     },
-                    uploadedSurveys: uploadedSurveys.map(survey => ({
+                    questionnaires: surveysList.map(survey => ({
                         id: survey.id,
                         title: survey.title,
                         caseNumber: survey.caseNumber,
                         patientId: survey.patientId,
-                        drugs: survey.drugs || [survey.drug], // 支持多药方案
+                        drugs: survey.drugs || [survey.drug],
                         diseaseType: survey.diseaseType,
                         fileName: survey.fileName,
-                        uploadTime: survey.uploadTime,
+                        source: survey.source || 'local',
+                        lastSync: survey.lastSync || survey.uploadTime,
                         patientInfo: {
-                            // 基本信息
                             gender: survey.patientInfo?.gender,
                             age: survey.patientInfo?.age,
                             race: survey.patientInfo?.race,
                             smoking: survey.patientInfo?.smoking,
-                            
-                            // 诊断信息
                             diagnosis: survey.patientInfo?.diagnosis,
                             stage: survey.patientInfo?.stage,
                             hrStatus: survey.patientInfo?.hrStatus,
                             her2Status: survey.patientInfo?.her2Status,
-                            
-                            // 基因信息
                             tmb: survey.patientInfo?.tmb,
                             msiStatus: survey.patientInfo?.msiStatus,
                             mutations: survey.patientInfo?.mutations,
-                            
-                            // 治疗信息
                             previousTreatment: survey.patientInfo?.previousTreatment,
-                            
-                            // 样本信息
                             sampleType: survey.patientInfo?.sampleType,
                             cancerType: survey.patientInfo?.cancerType,
-                            
-                            // 实验室结果
                             laboratoryResults: survey.patientInfo?.laboratoryResults
                         }
                     })),
-                    surveyData: surveyResults,
-                    userData: users.map(user => ({
+                    evaluationResults: surveyResults,
+                    evaluators: users.map(user => ({
                         name: user.name || '未知',
                         title: user.title || '未知',
                         specialty: user.specialty || '未知',
                         experience: user.experience || '未知',
                         hospital: user.hospital || '未填写',
                         registrationTime: user.registrationTime || new Date().toISOString()
-                    })),
-                    exportTime: new Date().toISOString(),
-                    exportedBy: (userData.currentUser && userData.currentUser.name) || '系统管理员'
+                    }))
                 };
                 
                 const dataStr = JSON.stringify(results, null, 2);
@@ -2233,143 +2321,31 @@
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = 'survey_results_' + new Date().toISOString().slice(0,10) + '.json';
+                a.download = `oncollm_survey_results_${new Date().toISOString().slice(0,10)}.json`;
                 a.click();
                 URL.revokeObjectURL(url);
                 
-                alert('数据导出成功！文件已下载到您的电脑。');
+                alert(`数据导出成功！\n数据源: ${dataSource}\n问卷数量: ${totalSurveys}\n评估结果: ${completed}`);
             } catch (error) {
                 console.error('导出数据时出错:', error);
                 alert('导出数据时出现错误：' + error.message + '\n请联系系统管理员。');
             }
         }
 
-        // 文件上传处理
+        // 文件上传处理（保留用于向后兼容，但在GitHub模式下不使用）
         function initFileUpload() {
-            const breastUpload = document.getElementById('breast-upload');
-            const lungUpload = document.getElementById('lung-upload');
-            
-            if (breastUpload) breastUpload.addEventListener('change', handleFileUpload);
-            if (lungUpload) lungUpload.addEventListener('change', handleFileUpload);
-            
-            // 拖拽上传
-            document.querySelectorAll('.upload-area').forEach(area => {
-                area.addEventListener('dragover', (e) => {
-                    e.preventDefault();
-                    area.classList.add('dragover');
-                });
-                
-                area.addEventListener('dragleave', () => {
-                    area.classList.remove('dragover');
-                });
-                
-                area.addEventListener('drop', (e) => {
-                    e.preventDefault();
-                    area.classList.remove('dragover');
-                    const files = e.dataTransfer.files;
-                    handleFileUpload({target: {files}});
-                });
-            });
+            // 在GitHub模式下，不再需要文件上传功能
+            // 保留此函数以避免错误，但不进行任何操作
+            console.log('系统已切换到GitHub数据源，文件上传功能已禁用');
         }
 
         function handleFileUpload(event) {
-            const files = event.target.files;
-            if (userData.currentUser.role !== 'admin') {
-                alert('只有管理员可以上传文件！');
-                return;
-            }
-            
-            if (files.length === 0) {
-                alert('请选择要上传的文件！');
-                return;
-            }
-            
-            const uploadButton = event.target;
-            const diseaseType = uploadButton.id.includes('breast') ? 'breast_cancer' : 'lung_cancer';
-            
-            // 显示批量上传进度
-            if (files.length > 1) {
-                const confirmed = confirm(`您选择了 ${files.length} 个文件进行批量上传。\n继续吗？`);
-                if (!confirmed) return;
-            }
-            
-            let successCount = 0;
-            let errorCount = 0;
-            const errors = [];
-            
-            // 批量处理文件
-            Array.from(files).forEach((file, index) => {
-                setTimeout(() => {
-                    processUploadedFile(file, diseaseType)
-                        .then(() => {
-                            successCount++;
-                            updateBatchUploadProgress(successCount + errorCount, files.length, successCount, errorCount);
-                        })
-                        .catch(error => {
-                            errorCount++;
-                            errors.push(`${file.name}: ${error.message}`);
-                            updateBatchUploadProgress(successCount + errorCount, files.length, successCount, errorCount);
-                        });
-                }, index * 100); // 稍微延迟处理，避免同时处理太多文件
-            });
+            alert('系统已切换到GitHub数据源，请使用"同步问卷"功能从GitHub加载问卷数据。');
         }
 
-        // 更新批量上传进度
-        function updateBatchUploadProgress(processed, total, success, errors) {
-            if (processed === total) {
-                // 上传完成
-                let message = `批量上传完成！\n成功: ${success} 个文件`;
-                if (errors > 0) {
-                    message += `\n失败: ${errors} 个文件`;
-                }
-                alert(message);
-                
-                // 刷新统计数据
-                if (document.getElementById('stats-container')) {
-                    loadStatistics();
-                }
-            }
-        }
-
-        // 处理上传的文件 (修改为返回Promise)
         function processUploadedFile(file, diseaseType) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                
-                reader.onload = function(e) {
-                    try {
-                        const content = e.target.result;
-                        const survey = parseQuestionnaireFile(content, file.name);
-                        
-                        if (survey) {
-                            // 保存问卷到localStorage
-                            const existingSurveys = JSON.parse(localStorage.getItem('uploadedSurveys') || '[]');
-                            survey.id = Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-                            survey.diseaseType = diseaseType;
-                            survey.uploadTime = new Date().toISOString();
-                            survey.fileName = file.name;
-                            existingSurveys.push(survey);
-                            localStorage.setItem('uploadedSurveys', JSON.stringify(existingSurveys));
-                            
-                            // 更新显示
-                            displayUploadedSurvey(survey, diseaseType);
-                            
-                            resolve(survey);
-                        } else {
-                            reject(new Error('文件格式不正确，无法解析'));
-                        }
-                    } catch (error) {
-                        console.error('处理文件时出错:', error);
-                        reject(error);
-                    }
-                };
-                
-                reader.onerror = function() {
-                    reject(new Error('读取文件失败'));
-                };
-                
-                reader.readAsText(file, 'UTF-8');
-            });
+            // 不再使用，保留以避免错误
+            return Promise.reject(new Error('文件上传功能已禁用，请使用GitHub数据源'));
         }
 
         // 解析问卷文件内容
