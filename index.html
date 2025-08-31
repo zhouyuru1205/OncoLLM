@@ -778,85 +778,28 @@
                 <div class="welcome-message">
                     <h2 id="welcome-text">欢迎，专家医生！</h2>
                     <p>感谢您参与AI药物反应预测模型的评估工作</p>
+                    <div style="margin-top: 1rem; display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center;">
+                        <button class="btn" onclick="refreshQuestionnaires()" style="background: #28a745; color: white;">🔄 刷新问卷列表</button>
+                        <button class="btn" onclick="importSurveyData()" style="background: #17a2b8; color: white;">📥 导入问卷数据</button>
+                    </div>
+                    <div id="doctor-github-status" style="margin-top: 1rem; text-align: center; display: none;"></div>
                 </div>
                 
                 <div class="page-content">
-                    <div class="disease-tabs">
-                        <button class="disease-tab active" onclick="switchSurveyTab('breast', this)">乳腺癌 (3)</button>
-                        <button class="disease-tab" onclick="switchSurveyTab('lung', this)">非小细胞肺癌 (2)</button>
+                    <div class="disease-tabs" id="doctor-disease-tabs">
+                        <button class="disease-tab active" onclick="switchSurveyTab('breast', this)">乳腺癌 (<span id="breast-count">0</span>)</button>
+                        <button class="disease-tab" onclick="switchSurveyTab('lung', this)">非小细胞肺癌 (<span id="lung-count">0</span>)</button>
                     </div>
 
                     <div id="breast-survey-list" class="survey-content">
-                        <div class="survey-grid">
-                            <!-- 示例问卷卡片 -->
-                            <div class="survey-card" onclick="openSurvey('P-0000597')">
-                                <div class="card-header">
-                                    <div class="card-title">病例 32</div>
-                                    <div class="card-status status-pending">待完成</div>
-                                </div>
-                                <div class="card-info">
-                                    <strong>患者ID:</strong> P-0000597<br>
-                                    <strong>治疗药物:</strong> 卡培他滨<br>
-                                    <strong>性别:</strong> 女性 | <strong>年龄:</strong> 51岁<br>
-                                    <strong>分期:</strong> IV期
-                                </div>
-                            </div>
-                            
-                            <div class="survey-card completed">
-                                <div class="card-header">
-                                    <div class="card-title">病例 28</div>
-                                    <div class="card-status status-completed">已完成</div>
-                                </div>
-                                <div class="card-info">
-                                    <strong>患者ID:</strong> P-0000523<br>
-                                    <strong>治疗药物:</strong> 多西他赛<br>
-                                    <strong>性别:</strong> 女性 | <strong>年龄:</strong> 45岁<br>
-                                    <strong>分期:</strong> III期
-                                </div>
-                            </div>
-                            
-                            <div class="survey-card">
-                                <div class="card-header">
-                                    <div class="card-title">病例 15</div>
-                                    <div class="card-status status-pending">待完成</div>
-                                </div>
-                                <div class="card-info">
-                                    <strong>患者ID:</strong> P-0000341<br>
-                                    <strong>治疗药物:</strong> 曲妥珠单抗<br>
-                                    <strong>性别:</strong> 女性 | <strong>年龄:</strong> 62岁<br>
-                                    <strong>分期:</strong> II期
-                                </div>
-                            </div>
+                        <div class="survey-grid" id="doctor-breast-surveys">
+                            <!-- 动态加载问卷 -->
                         </div>
                     </div>
 
                     <div id="lung-survey-list" class="survey-content" style="display: none;">
-                        <div class="survey-grid">
-                            <div class="survey-card">
-                                <div class="card-header">
-                                    <div class="card-title">病例 8</div>
-                                    <div class="card-status status-pending">待完成</div>
-                                </div>
-                                <div class="card-info">
-                                    <strong>患者ID:</strong> P-0000201<br>
-                                    <strong>治疗药物:</strong> 奥希替尼<br>
-                                    <strong>性别:</strong> 男性 | <strong>年龄:</strong> 58岁<br>
-                                    <strong>分期:</strong> IV期
-                                </div>
-                            </div>
-                            
-                            <div class="survey-card">
-                                <div class="card-header">
-                                    <div class="card-title">病例 12</div>
-                                    <div class="card-status status-pending">待完成</div>
-                                </div>
-                                <div class="card-info">
-                                    <strong>患者ID:</strong> P-0000287<br>
-                                    <strong>治疗药物:</strong> 培美曲塞<br>
-                                    <strong>性别:</strong> 女性 | <strong>年龄:</strong> 65岁<br>
-                                    <strong>分期:</strong> III期
-                                </div>
-                            </div>
+                        <div class="survey-grid" id="doctor-lung-surveys">
+                            <!-- 动态加载问卷 -->
                         </div>
                     </div>
                 </div>
@@ -1215,9 +1158,12 @@
                         <!-- 统计数据将通过JavaScript动态加载 -->
                     </div>
 
-                    <div style="display: flex; gap: 1rem; align-items: center;">
+                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
                         <button class="btn btn-primary" onclick="exportResults()">导出结果数据</button>
                         <button class="btn btn-secondary" onclick="clearAllData()">清空所有数据</button>
+                        <button class="btn btn-success" onclick="exportSurveyData()">导出问卷数据</button>
+                        <button class="btn" onclick="importSurveyData()" style="background: #17a2b8; color: white;">导入问卷数据</button>
+                        <input type="file" id="import-data" accept=".json" style="display: none;" onchange="handleImportData(event)">
                     </div>
                 </div>
             </div>
@@ -1292,14 +1238,340 @@
                 // 预加载统计数据和上传的问卷
                 loadStatistics();
                 loadUploadedSurveys();
+                loadGitHubConfig(); // 加载GitHub配置
             } else {
                 document.getElementById('admin-nav').style.display = 'none';
                 showPage('surveys');
+                // 为普通用户加载问卷列表（包括GitHub问卷）
+                loadDoctorSurveysList();
+                // 尝试从GitHub加载最新问卷
+                autoLoadFromGitHub();
             }
         }
 
-        // 加载已上传的问卷
+        // 自动从GitHub加载（给普通用户）
+        async function autoLoadFromGitHub() {
+            const config = JSON.parse(localStorage.getItem('githubConfig') || '{}');
+            
+            if (config.repo) {
+                // 静默加载，不显示状态信息
+                try {
+                    // 🔧 这里也要正确处理路径
+                    const repoPath = config.path ? config.path.replace(/\/$/, '') + '/' : '';
+                    const apiUrl = `https://api.github.com/repos/${config.repo}/contents/${repoPath}`;
+                    const response = await fetch(apiUrl);
+                    
+                    if (response.ok) {
+                        const files = await response.json();
+                        const mdFiles = files.filter(file => 
+                            file.type === 'file' && 
+                            (file.name.endsWith('.md') || file.name.endsWith('.txt'))
+                        );
+                        
+                        if (mdFiles.length > 0) {
+                            const loadedSurveys = [];
+                            
+                            for (const file of mdFiles.slice(0, 10)) { // 限制最多10个文件，避免加载太久
+                                try {
+                                    const fileResponse = await fetch(file.download_url);
+                                    const fileContent = await fileResponse.text();
+                                    
+                                    const survey = parseQuestionnaireFile(fileContent, file.name);
+                                    if (survey) {
+                                        survey.id = 'github_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                                        survey.source = 'github';
+                                        survey.githubUrl = file.download_url;
+                                        survey.githubPath = config.path || '根目录';
+                                        survey.uploadTime = new Date().toISOString();
+                                        survey.fileName = file.name;
+                                        survey.diseaseType = detectDiseaseType(file.name, fileContent, config.path);
+                                        loadedSurveys.push(survey);
+                                    }
+                                } catch (error) {
+                                    console.error(`解析文件 ${file.name} 时出错:`, error);
+                                }
+                            }
+                            
+                            if (loadedSurveys.length > 0) {
+                                const existingSurveys = JSON.parse(localStorage.getItem('uploadedSurveys') || '[]');
+                                const localSurveys = existingSurveys.filter(s => s.source !== 'github');
+                                const allSurveys = [...localSurveys, ...loadedSurveys];
+                                localStorage.setItem('uploadedSurveys', JSON.stringify(allSurveys));
+                                
+                                // 刷新医生界面
+                                loadDoctorSurveysList();
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('自动加载GitHub问卷失败:', error);
+                    // 静默失败，不影响用户体验
+                }
+            }
+        }
+
+        // 加载已上传的问卷（管理员界面）
         function loadUploadedSurveys() {
+            const surveys = JSON.parse(localStorage.getItem('uploadedSurveys') || '[]');
+            
+            // 清空现有显示
+            const breastContainer = document.querySelector('#breast-surveys');
+            const lungContainer = document.querySelector('#lung-surveys');
+            if (breastContainer) breastContainer.innerHTML = '';
+            if (lungContainer) lungContainer.innerHTML = '';
+            
+            // 显示所有上传的问卷
+            surveys.forEach(survey => {
+                displayUploadedSurvey(survey, survey.diseaseType);
+            });
+            
+            // 如果没有上传的问卷，显示提示
+            if (surveys.length === 0) {
+                [breastContainer, lungContainer].forEach(container => {
+                    if (container) {
+                        container.innerHTML = `
+                            <div style="text-align: center; padding: 2rem; color: #666;">
+                                <p>暂无上传的问卷</p>
+                                <p style="font-size: 0.9rem;">请点击上方的上传区域添加问卷文件</p>
+                            </div>
+                        `;
+                    }
+                });
+            }
+        }
+
+        // 为医生用户加载问卷列表
+        function loadDoctorSurveysList() {
+            const surveys = JSON.parse(localStorage.getItem('uploadedSurveys') || '[]');
+            const completedSurveys = JSON.parse(localStorage.getItem('surveyResults') || '[]');
+            
+            // 创建已完成问卷的映射（根据患者ID）
+            const completedMap = {};
+            completedSurveys.forEach(result => {
+                if (result.patientId || (result.doctorInfo && result.doctorInfo.username === userData.currentUser.username)) {
+                    completedMap[result.patientId] = true;
+                }
+            });
+            
+            // 清空现有显示
+            const breastContainer = document.querySelector('#doctor-breast-surveys');
+            const lungContainer = document.querySelector('#doctor-lung-surveys');
+            if (breastContainer) breastContainer.innerHTML = '';
+            if (lungContainer) lungContainer.innerHTML = '';
+            
+            let breastCount = 0;
+            let lungCount = 0;
+            
+            // 按疾病类型分组显示
+            surveys.forEach(survey => {
+                const isCompleted = completedMap[survey.patientId];
+                
+                if (survey.diseaseType === 'breast_cancer') {
+                    breastCount++;
+                    displayDoctorSurveyCard(survey, breastContainer, isCompleted);
+                } else if (survey.diseaseType === 'lung_cancer') {
+                    lungCount++;
+                    displayDoctorSurveyCard(survey, lungContainer, isCompleted);
+                }
+            });
+            
+            // 更新标签页计数
+            const breastCountEl = document.getElementById('breast-count');
+            const lungCountEl = document.getElementById('lung-count');
+            if (breastCountEl) breastCountEl.textContent = breastCount;
+            if (lungCountEl) lungCountEl.textContent = lungCount;
+            
+            // 如果没有问卷，显示提示信息
+            if (surveys.length === 0) {
+                [breastContainer, lungContainer].forEach(container => {
+                    if (container) {
+                        container.innerHTML = `
+                            <div style="text-align: center; padding: 3rem; color: #666;">
+                                <div style="font-size: 3rem; margin-bottom: 1rem;">📋</div>
+                                <h3>暂无可填写的问卷</h3>
+                                <p>管理员尚未上传问卷，请稍后再来查看。</p>
+                            </div>
+                        `;
+                    }
+                });
+            } else if (breastCount === 0 && breastContainer) {
+                breastContainer.innerHTML = `
+                    <div style="text-align: center; padding: 2rem; color: #666;">
+                        <p>该疾病类型暂无问卷</p>
+                    </div>
+                `;
+            } else if (lungCount === 0 && lungContainer) {
+                lungContainer.innerHTML = `
+                    <div style="text-align: center; padding: 2rem; color: #666;">
+                        <p>该疾病类型暂无问卷</p>
+                    </div>
+                `;
+            }
+        }
+
+        // 刷新问卷列表（给医生用户）
+        async function refreshQuestionnaires() {
+            const statusDiv = document.getElementById('doctor-github-status');
+            if (statusDiv) {
+                statusDiv.style.display = 'block';
+                statusDiv.textContent = '🔄 正在刷新问卷列表...';
+                statusDiv.style.background = '#cce7ff';
+                statusDiv.style.color = '#004085';
+                statusDiv.style.border = '1px solid #bee5eb';
+                statusDiv.style.padding = '0.5rem';
+                statusDiv.style.borderRadius = '4px';
+            }
+            
+            const config = JSON.parse(localStorage.getItem('githubConfig') || '{}');
+            
+            if (config.repo) {
+                try {
+                    await autoLoadFromGitHub();
+                    if (statusDiv) {
+                        statusDiv.textContent = '✅ 问卷列表已更新';
+                        statusDiv.style.background = '#d4edda';
+                        statusDiv.style.color = '#155724';
+                        statusDiv.style.border = '1px solid #c3e6cb';
+                    }
+                } catch (error) {
+                    if (statusDiv) {
+                        statusDiv.textContent = '❌ 刷新失败，请检查网络连接';
+                        statusDiv.style.background = '#f8d7da';
+                        statusDiv.style.color = '#721c24';
+                        statusDiv.style.border = '1px solid #f5c6cb';
+                    }
+                }
+            } else {
+                // 只刷新本地数据
+                loadDoctorSurveysList();
+                if (statusDiv) {
+                    statusDiv.textContent = '✅ 本地问卷列表已刷新';
+                    statusDiv.style.background = '#d4edda';
+                    statusDiv.style.color = '#155724';
+                    statusDiv.style.border = '1px solid #c3e6cb';
+                }
+            }
+            
+            // 3秒后隐藏状态
+            setTimeout(() => {
+                if (statusDiv) {
+                    statusDiv.style.display = 'none';
+                }
+            }, 3000);
+        }
+
+        // 为医生显示问卷卡片（增强版）
+        function displayDoctorSurveyCard(survey, container, isCompleted = false) {
+            if (!container) return;
+            
+            const patientInfo = survey.patientInfo || {};
+            const drugs = Array.isArray(survey.drugs) ? survey.drugs : [survey.drug || survey.drugs];
+            const drugsText = drugs.filter(d => d).join(' + ') || '未知药物';
+            
+            const surveyCard = document.createElement('div');
+            surveyCard.className = `survey-card ${isCompleted ? 'completed' : ''}`;
+            surveyCard.onclick = () => openUploadedSurvey(survey.id);
+            
+            // 构建详细信息
+            let detailsHtml = `
+                <strong>患者ID:</strong> ${survey.patientId}<br>
+                <strong>治疗药物:</strong> ${drugsText}<br>
+            `;
+            
+            // 基本信息
+            if (patientInfo.gender || patientInfo.age) {
+                detailsHtml += `<strong>性别:</strong> ${patientInfo.gender || '未知'} | <strong>年龄:</strong> ${patientInfo.age || '未知'}<br>`;
+            }
+            
+            // 诊断信息（简化显示）
+            if (patientInfo.diagnosis) {
+                // 截取诊断的主要部分
+                const diagnosisShort = patientInfo.diagnosis.split('|')[0].trim();
+                detailsHtml += `<strong>诊断:</strong> ${diagnosisShort}<br>`;
+            }
+            
+            // 分期信息
+            if (patientInfo.stage) {
+                detailsHtml += `<strong>分期:</strong> ${patientInfo.stage}`;
+            }
+            
+            // HR/HER2状态（简化）
+            if (patientInfo.hrStatus && patientInfo.her2Status) {
+                detailsHtml += ` | <strong>HR:</strong> ${patientInfo.hrStatus} <strong>HER2:</strong> ${patientInfo.her2Status}`;
+            }
+            
+            // 添加来源标识
+            if (survey.source === 'github') {
+                detailsHtml += '<br><small style="color: #28a745;">📦 来自GitHub</small>';
+            }
+            
+            surveyCard.innerHTML = `
+                <div class="card-header">
+                    <div class="card-title">${survey.title || '问卷'}</div>
+                    <div class="card-status ${isCompleted ? 'status-completed' : 'status-pending'}">
+                        ${isCompleted ? '已完成' : '待完成'}
+                    </div>
+                </div>
+                <div class="card-info">
+                    ${detailsHtml}
+                </div>
+            `;
+            
+            container.appendChild(surveyCard);
+        }
+        function displayDoctorSurveyCard(survey, container, isCompleted = false) {
+            if (!container) return;
+            
+            const patientInfo = survey.patientInfo || {};
+            const drugs = Array.isArray(survey.drugs) ? survey.drugs : [survey.drug || survey.drugs];
+            const drugsText = drugs.filter(d => d).join(' + ') || '未知药物';
+            
+            const surveyCard = document.createElement('div');
+            surveyCard.className = `survey-card ${isCompleted ? 'completed' : ''}`;
+            surveyCard.onclick = () => openUploadedSurvey(survey.id);
+            
+            // 构建详细信息
+            let detailsHtml = `
+                <strong>患者ID:</strong> ${survey.patientId}<br>
+                <strong>治疗药物:</strong> ${drugsText}<br>
+            `;
+            
+            // 基本信息
+            if (patientInfo.gender || patientInfo.age) {
+                detailsHtml += `<strong>性别:</strong> ${patientInfo.gender || '未知'} | <strong>年龄:</strong> ${patientInfo.age || '未知'}<br>`;
+            }
+            
+            // 诊断信息（简化显示）
+            if (patientInfo.diagnosis) {
+                // 截取诊断的主要部分
+                const diagnosisShort = patientInfo.diagnosis.split('|')[0].trim();
+                detailsHtml += `<strong>诊断:</strong> ${diagnosisShort}<br>`;
+            }
+            
+            // 分期信息
+            if (patientInfo.stage) {
+                detailsHtml += `<strong>分期:</strong> ${patientInfo.stage}`;
+            }
+            
+            // HR/HER2状态（简化）
+            if (patientInfo.hrStatus && patientInfo.her2Status) {
+                detailsHtml += ` | <strong>HR:</strong> ${patientInfo.hrStatus} <strong>HER2:</strong> ${patientInfo.her2Status}`;
+            }
+            
+            surveyCard.innerHTML = `
+                <div class="card-header">
+                    <div class="card-title">${survey.title || '问卷'}</div>
+                    <div class="card-status ${isCompleted ? 'status-completed' : 'status-pending'}">
+                        ${isCompleted ? '已完成' : '待完成'}
+                    </div>
+                </div>
+                <div class="card-info">
+                    ${detailsHtml}
+                </div>
+            `;
+            
+            container.appendChild(surveyCard);
+        }
             const surveys = JSON.parse(localStorage.getItem('uploadedSurveys') || '[]');
             
             // 清空现有显示
@@ -1511,66 +1783,131 @@
             }
             
             const testSurveys = {
-                breast_cancer: {
-                    title: "病例 32",
-                    caseNumber: "32",
-                    patientId: "P-0000597",
-                    drug: "卡培他滨 (CAPECITABINE)",
-                    patientInfo: {
-                        gender: "女性",
-                        age: "51.0",
-                        race: "黑人或非裔美国人",
-                        smoking: "从不吸烟",
-                        diagnosis: "浸润性导管癌 | 乳腺，外上象限 (M8500/3 | C504)",
-                        stage: "IV期",
-                        tmb: "7.76",
-                        mutations: "TNFAIP3 p.L12M, KMT2C p.S4151F, PTPRD p.M1253K, GATA3 p.L190P, ARID2 p.I486V, BRCA2 p.R2268K, BRCA2 p.L1491Kfs*12"
+                breast_cancer: [
+                    {
+                        title: "病例 32",
+                        caseNumber: "32",
+                        patientId: "P-0000597",
+                        drugs: ["卡培他滨"],
+                        patientInfo: {
+                            gender: "女性",
+                            age: "51.0",
+                            race: "黑人或非裔美国人",
+                            smoking: "从不吸烟",
+                            diagnosis: "浸润性导管癌 | 乳腺，外上象限 (M8500/3 | C504)",
+                            hrStatus: "阳性",
+                            her2Status: "阴性",
+                            stage: "IV期",
+                            tmb: "7.76",
+                            msiStatus: "稳定",
+                            previousTreatment: "来曲唑, 他莫昔芬, 哌柏西利, 依维莫司, 依西美坦, 唑来膦酸",
+                            mutations: "TNFAIP3 p.L12M, KMT2C p.S4151F, PTPRD p.M1253K, GATA3 p.L190P, ARID2 p.I486V, BRCA2 p.R2268K, BRCA2 p.L1491Kfs*12",
+                            cancerType: "乳腺癌",
+                            sampleType: "转移灶",
+                            laboratoryResults: {
+                                "CEA": "22.7 ng/ml",
+                                "CA 15-3": "300 U/ml"
+                            }
+                        },
+                        modelReports: {
+                            modelA: "**预测治疗反应评分:** 0.420 / 1.0\n\n**推理依据:**\n1. BRCA2突变可能通过影响DNA修复途径而影响卡培他滨的疗效\n2. TMB (7.76): 中等基因组不稳定性",
+                            modelB: "**预测治疗反应评分:** 0.648 / 1.0\n\n**推理依据:**\n卡培他滨代谢为5-氟尿嘧啶，患者的BRCA2突变与同源重组缺陷相关，可能增强对5-FU的敏感性"
+                        }
                     },
-                    modelReports: {
-                        modelA: "预测治疗反应评分: 0.420 / 1.0\n推理依据:\n1. BRCA2突变: 可能通过影响DNA修复途径而影响卡培他滨的疗效\n2. TMB (7.76): 中等基因组不稳定性",
-                        modelB: "预测治疗反应评分: 0.648 / 1.0\n推理依据:\n基因突变与药物机制: 卡培他滨代谢为5-氟尿嘧啶，患者的BRCA2突变可能增强对5-FU的敏感性"
+                    {
+                        title: "病例 47",
+                        caseNumber: "47", 
+                        patientId: "P-0064575",
+                        drugs: ["帕博西尼", "来曲唑"], // 多药方案示例
+                        patientInfo: {
+                            gender: "女性",
+                            age: "66.0",
+                            race: "白人",
+                            smoking: "从不吸烟",
+                            diagnosis: "浸润性导管癌 | 乳腺，液性（M8500/3 | C503）",
+                            hrStatus: "阳性",
+                            her2Status: "阴性",
+                            stage: "IV期",
+                            tmb: "24.61",
+                            msiStatus: "稳定",
+                            msiScore: "0.76",
+                            previousTreatment: "来曲唑, 帕博西尼",
+                            mutations: "PIK3CA p.H1047R, STK11 p.S216F, SMAD3 p.V331I, SRSF2 p.K197N, MET p.E1314K, NF1 p.Q2147*",
+                            cancerType: "乳腺癌",
+                            cancerDetailType: "浸润性乳腺癌",
+                            sampleType: "原发",
+                            primarySite: "乳腺",
+                            structuralVariants: "未检测到结构变异",
+                            clinicalGroup: "4",
+                            pathologyGroup: "4",
+                            summary: "远处转移/系统性疾病",
+                            laboratoryResults: {
+                                "CEA": "1.8-2.6 ng/ml",
+                                "CA 15-3": "10-20 U/ml",
+                                "CA 19-9": "35-39 U/ml"
+                            }
+                        },
+                        modelReports: {
+                            modelA: "**预测治疗反应评分:** 0.620 / 1.0\n\n**推理依据:**\n1. PIK3CA p.H1047R: 组成型PI3K/AKT通路激活可能降低来曲唑疗效\n2. HR阳性状态支持来曲唑在激素敏感性疾病中的疗效",
+                            modelB: "**预测治疗反应评分:** 0.750 / 1.0\n\n**推理依据:**\nHR阳性乳腺癌对来曲唑敏感，PIK3CA突变不影响帕博西尼疗效，CDK4/6抑制剂对PIK3CA突变肿瘤仍有效"
+                        }
                     }
-                },
-                lung_cancer: {
-                    title: "病例 8",
-                    caseNumber: "8",
-                    patientId: "P-0000201",
-                    drug: "奥希替尼 (OSIMERTINIB)",
-                    patientInfo: {
-                        gender: "男性",
-                        age: "58",
-                        race: "亚洲人",
-                        smoking: "既往吸烟",
-                        diagnosis: "肺腺癌",
-                        stage: "IV期",
-                        tmb: "4.2",
-                        mutations: "EGFR T790M, EGFR L858R"
-                    },
-                    modelReports: {
-                        modelA: "预测治疗反应评分: 0.85 / 1.0\nEGFR T790M突变对奥希替尼敏感",
-                        modelB: "预测治疗反应评分: 0.78 / 1.0\n三代EGFR-TKI对T790M突变有很好的疗效"
+                ],
+                lung_cancer: [
+                    {
+                        title: "病例 8",
+                        caseNumber: "8",
+                        patientId: "P-0000201",
+                        drugs: ["奥希替尼"],
+                        patientInfo: {
+                            gender: "男性",
+                            age: "58",
+                            race: "亚洲人",
+                            smoking: "既往吸烟",
+                            diagnosis: "肺腺癌",
+                            stage: "IV期",
+                            tmb: "4.2",
+                            msiStatus: "稳定",
+                            mutations: "EGFR T790M, EGFR L858R",
+                            cancerType: "肺癌",
+                            cancerDetailType: "非小细胞肺癌",
+                            sampleType: "原发",
+                            primarySite: "肺",
+                            laboratoryResults: {
+                                "CEA": "15.2 ng/ml"
+                            }
+                        },
+                        modelReports: {
+                            modelA: "**预测治疗反应评分:** 0.85 / 1.0\n\n**推理依据:**\nEGFR T790M突变对奥希替尼高度敏感，三代EGFR-TKI的标准适应症",
+                            modelB: "**预测治疗反应评分:** 0.78 / 1.0\n\n**推理依据:**\n奥希替尼专门针对T790M耐药突变设计，在T790M阳性患者中显示出良好疗效"
+                        }
                     }
-                }
+                ]
             };
             
-            const survey = testSurveys[diseaseType];
-            if (survey) {
+            const surveys = testSurveys[diseaseType];
+            if (surveys && surveys.length > 0) {
+                // 随机选择一个测试问卷
+                const survey = surveys[Math.floor(Math.random() * surveys.length)];
+                
                 // 添加系统字段
-                survey.id = Date.now() + '_test_' + Math.random().toString(36).substr(2, 9);
-                survey.diseaseType = diseaseType;
-                survey.uploadTime = new Date().toISOString();
-                survey.fileName = `test_${diseaseType}_${survey.caseNumber}.json`;
+                const newSurvey = JSON.parse(JSON.stringify(survey)); // 深拷贝
+                newSurvey.id = Date.now() + '_test_' + Math.random().toString(36).substr(2, 9);
+                newSurvey.diseaseType = diseaseType;
+                newSurvey.uploadTime = new Date().toISOString();
+                newSurvey.fileName = `test_${diseaseType}_${survey.caseNumber}.json`;
                 
                 // 保存到localStorage
                 const existingSurveys = JSON.parse(localStorage.getItem('uploadedSurveys') || '[]');
-                existingSurveys.push(survey);
+                existingSurveys.push(newSurvey);
                 localStorage.setItem('uploadedSurveys', JSON.stringify(existingSurveys));
                 
                 // 更新显示
-                displayUploadedSurvey(survey, diseaseType);
+                displayUploadedSurvey(newSurvey, diseaseType);
                 loadStatistics();
                 
-                alert(`测试问卷"${survey.title}"创建成功！`);
+                const drugText = Array.isArray(newSurvey.drugs) ? newSurvey.drugs.join(' + ') : newSurvey.drugs;
+                alert(`测试问卷"${newSurvey.title}"创建成功！\n治疗方案: ${drugText}`);
             }
         }
         function clearAllData() {
@@ -1658,9 +1995,12 @@
             // 显示目标页面
             document.getElementById(pageId).classList.add('active');
             
-            // 如果是结果统计页面，加载最新数据
+            // 特殊页面的数据加载
             if (pageId === 'results') {
                 loadStatistics();
+            } else if (pageId === 'surveys' && userData.currentUser.role !== 'admin') {
+                // 普通用户打开问卷页面时刷新问卷列表
+                loadDoctorSurveysList();
             }
             
             // 更新导航按钮状态
@@ -1711,7 +2051,12 @@
             document.querySelectorAll('.survey-content').forEach(content => {
                 content.style.display = 'none';
             });
-            document.getElementById(type + '-survey-list').style.display = 'block';
+            
+            const targetId = type + '-survey-list';
+            const targetElement = document.getElementById(targetId);
+            if (targetElement) {
+                targetElement.style.display = 'block';
+            }
         }
 
         // 打开具体问卷
@@ -1781,8 +2126,14 @@
             data.additionalFeedback = document.getElementById('additional-feedback')?.value || '';
             data.timestamp = new Date().toISOString();
             data.doctorInfo = userData.currentUser;
-            data.patientId = 'P-0000597'; // 这里应该根据实际病例ID设置
-            data.caseNumber = '32'; // 病例编号
+            
+            // 从隐藏字段获取当前问卷信息
+            data.patientId = data.currentPatientId || '';
+            data.caseNumber = data.currentCaseNumber || '';
+            
+            // 清理隐藏字段，不需要保存到结果中
+            delete data.currentPatientId;
+            delete data.currentCaseNumber;
             
             // 保存到本地存储
             const existingSurveys = JSON.parse(localStorage.getItem('surveyResults') || '[]');
@@ -1796,6 +2147,9 @@
             // 如果当前用户是管理员，刷新统计数据
             if (userData.currentUser.role === 'admin') {
                 loadStatistics();
+            } else {
+                // 普通用户提交后刷新问卷列表（更新完成状态）
+                loadDoctorSurveysList();
             }
             
             showPage('surveys');
@@ -1826,11 +2180,40 @@
                     uploadedSurveys: uploadedSurveys.map(survey => ({
                         id: survey.id,
                         title: survey.title,
+                        caseNumber: survey.caseNumber,
                         patientId: survey.patientId,
-                        drug: survey.drug,
+                        drugs: survey.drugs || [survey.drug], // 支持多药方案
                         diseaseType: survey.diseaseType,
                         fileName: survey.fileName,
-                        uploadTime: survey.uploadTime
+                        uploadTime: survey.uploadTime,
+                        patientInfo: {
+                            // 基本信息
+                            gender: survey.patientInfo?.gender,
+                            age: survey.patientInfo?.age,
+                            race: survey.patientInfo?.race,
+                            smoking: survey.patientInfo?.smoking,
+                            
+                            // 诊断信息
+                            diagnosis: survey.patientInfo?.diagnosis,
+                            stage: survey.patientInfo?.stage,
+                            hrStatus: survey.patientInfo?.hrStatus,
+                            her2Status: survey.patientInfo?.her2Status,
+                            
+                            // 基因信息
+                            tmb: survey.patientInfo?.tmb,
+                            msiStatus: survey.patientInfo?.msiStatus,
+                            mutations: survey.patientInfo?.mutations,
+                            
+                            // 治疗信息
+                            previousTreatment: survey.patientInfo?.previousTreatment,
+                            
+                            // 样本信息
+                            sampleType: survey.patientInfo?.sampleType,
+                            cancerType: survey.patientInfo?.cancerType,
+                            
+                            // 实验室结果
+                            laboratoryResults: survey.patientInfo?.laboratoryResults
+                        }
                     })),
                     surveyData: surveyResults,
                     userData: users.map(user => ({
@@ -1904,57 +2287,89 @@
             const uploadButton = event.target;
             const diseaseType = uploadButton.id.includes('breast') ? 'breast_cancer' : 'lung_cancer';
             
-            Array.from(files).forEach(file => {
-                processUploadedFile(file, diseaseType);
+            // 显示批量上传进度
+            if (files.length > 1) {
+                const confirmed = confirm(`您选择了 ${files.length} 个文件进行批量上传。\n继续吗？`);
+                if (!confirmed) return;
+            }
+            
+            let successCount = 0;
+            let errorCount = 0;
+            const errors = [];
+            
+            // 批量处理文件
+            Array.from(files).forEach((file, index) => {
+                setTimeout(() => {
+                    processUploadedFile(file, diseaseType)
+                        .then(() => {
+                            successCount++;
+                            updateBatchUploadProgress(successCount + errorCount, files.length, successCount, errorCount);
+                        })
+                        .catch(error => {
+                            errorCount++;
+                            errors.push(`${file.name}: ${error.message}`);
+                            updateBatchUploadProgress(successCount + errorCount, files.length, successCount, errorCount);
+                        });
+                }, index * 100); // 稍微延迟处理，避免同时处理太多文件
             });
         }
 
-        // 处理上传的文件
-        function processUploadedFile(file, diseaseType) {
-            const reader = new FileReader();
-            
-            reader.onload = function(e) {
-                try {
-                    const content = e.target.result;
-                    const survey = parseQuestionnaireFile(content, file.name);
-                    
-                    if (survey) {
-                        // 保存问卷到localStorage
-                        const existingSurveys = JSON.parse(localStorage.getItem('uploadedSurveys') || '[]');
-                        survey.id = Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-                        survey.diseaseType = diseaseType;
-                        survey.uploadTime = new Date().toISOString();
-                        survey.fileName = file.name;
-                        existingSurveys.push(survey);
-                        localStorage.setItem('uploadedSurveys', JSON.stringify(existingSurveys));
-                        
-                        // 更新显示
-                        displayUploadedSurvey(survey, diseaseType);
-                        
-                        // 更新问卷总数
-                        const currentTotal = parseInt(localStorage.getItem('totalSurveys') || '0');
-                        localStorage.setItem('totalSurveys', (currentTotal + 1).toString());
-                        
-                        alert(`问卷"${file.name}"上传成功！`);
-                        
-                        // 刷新统计数据
-                        if (document.getElementById('stats-container')) {
-                            loadStatistics();
-                        }
-                    } else {
-                        alert(`文件"${file.name}"格式不正确，无法解析！`);
-                    }
-                } catch (error) {
-                    console.error('处理文件时出错:', error);
-                    alert(`处理文件"${file.name}"时出错: ${error.message}`);
+        // 更新批量上传进度
+        function updateBatchUploadProgress(processed, total, success, errors) {
+            if (processed === total) {
+                // 上传完成
+                let message = `批量上传完成！\n成功: ${success} 个文件`;
+                if (errors > 0) {
+                    message += `\n失败: ${errors} 个文件`;
                 }
-            };
-            
-            reader.onerror = function() {
-                alert(`读取文件"${file.name}"失败！`);
-            };
-            
-            reader.readAsText(file, 'UTF-8');
+                alert(message);
+                
+                // 刷新统计数据
+                if (document.getElementById('stats-container')) {
+                    loadStatistics();
+                }
+            }
+        }
+
+        // 处理上传的文件 (修改为返回Promise)
+        function processUploadedFile(file, diseaseType) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    try {
+                        const content = e.target.result;
+                        const survey = parseQuestionnaireFile(content, file.name);
+                        
+                        if (survey) {
+                            // 保存问卷到localStorage
+                            const existingSurveys = JSON.parse(localStorage.getItem('uploadedSurveys') || '[]');
+                            survey.id = Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                            survey.diseaseType = diseaseType;
+                            survey.uploadTime = new Date().toISOString();
+                            survey.fileName = file.name;
+                            existingSurveys.push(survey);
+                            localStorage.setItem('uploadedSurveys', JSON.stringify(existingSurveys));
+                            
+                            // 更新显示
+                            displayUploadedSurvey(survey, diseaseType);
+                            
+                            resolve(survey);
+                        } else {
+                            reject(new Error('文件格式不正确，无法解析'));
+                        }
+                    } catch (error) {
+                        console.error('处理文件时出错:', error);
+                        reject(error);
+                    }
+                };
+                
+                reader.onerror = function() {
+                    reject(new Error('读取文件失败'));
+                };
+                
+                reader.readAsText(file, 'UTF-8');
+            });
         }
 
         // 解析问卷文件内容
@@ -1970,8 +2385,49 @@
                     title: '',
                     caseNumber: '',
                     patientId: '',
-                    drug: '',
-                    patientInfo: {},
+                    drugs: [], // 支持多药方案
+                    patientInfo: {
+                        // 基本信息
+                        gender: '',
+                        age: '',
+                        race: '',
+                        ethnicity: '',
+                        smoking: '',
+                        
+                        // 诊断与分期
+                        diagnosis: '',
+                        hrStatus: '',
+                        her2Status: '',
+                        stage: '',
+                        clinicalGroup: '',
+                        pathologyGroup: '',
+                        derivedStage: '',
+                        summary: '',
+                        
+                        // 基因信息
+                        tmb: '',
+                        msiStatus: '',
+                        msiScore: '',
+                        mutations: '',
+                        structuralVariants: '',
+                        
+                        // 既往治疗
+                        previousTreatment: '',
+                        previousDrugStatus: '',
+                        
+                        // 样本信息
+                        sampleId: '',
+                        cancerType: '',
+                        cancerDetailType: '',
+                        primarySite: '',
+                        metastaticSite: '',
+                        sampleType: '',
+                        sampleTiming: '',
+                        
+                        // 实验室结果
+                        laboratoryResults: {}
+                    },
+                    drugInfo: {}, // 药物详细信息
                     modelReports: {
                         modelA: '',
                         modelB: ''
@@ -1991,18 +2447,24 @@
                     survey.patientId = patientIdMatch[1];
                 }
                 
-                // 提取治疗药物
+                // 提取治疗药物（支持多药）
                 const drugMatch = content.match(/治疗药物[：:]\s*([^\n]+)/);
                 if (drugMatch) {
-                    survey.drug = drugMatch[1].replace(/\s*\([^)]*\)/, '');
+                    const drugText = drugMatch[1];
+                    // 分割多个药物（以逗号分隔）
+                    const drugList = drugText.split(/[,，]/).map(drug => {
+                        // 移除括号内容，只保留主要药物名
+                        return drug.replace(/\s*\([^)]*\)/g, '').trim();
+                    }).filter(drug => drug.length > 0);
+                    
+                    survey.drugs = drugList;
                 }
                 
-                // 提取患者基本信息
-                const basicInfoSection = content.match(/\*\*基本信息:\*\*([\s\S]*?)(?:\*\*|$)/);
+                // 提取基本信息
+                const basicInfoSection = content.match(/\*\*基本信息:\*\*([\s\S]*?)(?=\*\*|---)/);
                 if (basicInfoSection) {
                     const basicInfo = basicInfoSection[1];
                     
-                    // 提取各个字段
                     const genderMatch = basicInfo.match(/性别[：:]?\s*([^\n]+)/);
                     if (genderMatch) survey.patientInfo.gender = genderMatch[1].trim();
                     
@@ -2016,21 +2478,44 @@
                     if (smokingMatch) survey.patientInfo.smoking = smokingMatch[1].trim();
                 }
                 
-                // 提取诊断信息
-                const diagnosisMatch = content.match(/诊断[：:]\s*([^\n]+)/);
-                if (diagnosisMatch) survey.patientInfo.diagnosis = diagnosisMatch[1].trim();
+                // 提取诊断与分期信息
+                const diagnosisSection = content.match(/\*\*诊断与分期:\*\*([\s\S]*?)(?=\*\*|---)/);
+                if (diagnosisSection) {
+                    const diagnosisInfo = diagnosisSection[1];
+                    
+                    const diagnosisMatch = diagnosisInfo.match(/诊断[：:]\s*([^\n]+)/);
+                    if (diagnosisMatch) survey.patientInfo.diagnosis = diagnosisMatch[1].trim();
+                    
+                    const hrMatch = diagnosisInfo.match(/HR状态[：:]\s*([^\n]+)/);
+                    if (hrMatch) survey.patientInfo.hrStatus = hrMatch[1].trim();
+                    
+                    const her2Match = diagnosisInfo.match(/HER2状态[：:]\s*([^\n]+)/);
+                    if (her2Match) survey.patientInfo.her2Status = her2Match[1].trim();
+                    
+                    const stageMatch = diagnosisInfo.match(/最高记录分期[：:]\s*([^\n]+)/);
+                    if (stageMatch) survey.patientInfo.stage = stageMatch[1].trim();
+                }
                 
-                // 提取分期
-                const stageMatch = content.match(/最高记录分期[：:]\s*([^\n]+)/);
-                if (stageMatch) survey.patientInfo.stage = stageMatch[1].trim();
+                // 提取既往治疗
+                const treatmentMatch = content.match(/\*\*既往主要治疗:\*\*\s*([^\n]+)/);
+                if (treatmentMatch) {
+                    survey.patientInfo.previousTreatment = treatmentMatch[1].trim();
+                }
                 
-                // 提取TMB
-                const tmbMatch = content.match(/TMB[^：:]*[：:]\s*([^\n]+)/);
-                if (tmbMatch) survey.patientInfo.tmb = tmbMatch[1].trim();
+                // 提取基因图谱信息
+                const geneSection = content.match(/\*\*基因图谱:\*\*([\s\S]*?)(?=\*\*1\.1|---)/);
+                if (geneSection) {
+                    const geneInfo = geneSection[1];
+                    
+                    const tmbMatch = geneInfo.match(/TMB[^：:]*[：:]\s*([^\n]+)/);
+                    if (tmbMatch) survey.patientInfo.tmb = tmbMatch[1].trim();
+                    
+                    const mutationMatch = geneInfo.match(/关键基因突变[：:]\s*([^\n]+)/);
+                    if (mutationMatch) survey.patientInfo.mutations = mutationMatch[1].trim();
+                }
                 
-                // 提取基因突变
-                const mutationMatch = content.match(/关键基因突变[：:]\s*([^\n]+)/);
-                if (mutationMatch) survey.patientInfo.mutations = mutationMatch[1].trim();
+                // 从报告中提取更详细的信息
+                extractDetailedInfoFromReports(content, survey);
                 
                 // 提取模型A报告
                 const modelAMatch = content.match(/\*\*模型A[：:]?生成的报告\*\*([\s\S]*?)(?=\*\*模型B|$)/);
@@ -2045,7 +2530,7 @@
                 }
                 
                 // 验证必要字段
-                if (!survey.patientId || !survey.drug) {
+                if (!survey.patientId || survey.drugs.length === 0) {
                     throw new Error('缺少必要的患者信息（患者ID或治疗药物）');
                 }
                 
@@ -2055,6 +2540,61 @@
                 console.error('解析问卷文件时出错:', error);
                 throw error;
             }
+        }
+
+        // 从报告中提取详细信息
+        function extractDetailedInfoFromReports(content, survey) {
+            // 提取样本信息
+            const sampleIdMatch = content.match(/样本ID[：:]\s*([^\n\(]+)/);
+            if (sampleIdMatch) survey.patientInfo.sampleId = sampleIdMatch[1].trim();
+            
+            // 提取癌症类型
+            const cancerTypeMatch = content.match(/癌症类型[：:]\s*([^\n]+)/);
+            if (cancerTypeMatch) survey.patientInfo.cancerType = cancerTypeMatch[1].trim();
+            
+            const cancerDetailMatch = content.match(/癌症详细类型[：:]\s*([^\n]+)/);
+            if (cancerDetailMatch) survey.patientInfo.cancerDetailType = cancerDetailMatch[1].trim();
+            
+            // 提取MSI信息
+            const msiStatusMatch = content.match(/MSI状态[：:]\s*([^\n]+)/);
+            if (msiStatusMatch) survey.patientInfo.msiStatus = msiStatusMatch[1].trim();
+            
+            const msiScoreMatch = content.match(/MSI评分[：:]\s*([^\n]+)/);
+            if (msiScoreMatch) survey.patientInfo.msiScore = msiScoreMatch[1].trim();
+            
+            // 提取样本类型和部位
+            const primarySiteMatch = content.match(/原发部位[：:]\s*([^\n]+)/);
+            if (primarySiteMatch) survey.patientInfo.primarySite = primarySiteMatch[1].trim();
+            
+            const sampleTypeMatch = content.match(/样本类型[：:]\s*([^\n]+)/);
+            if (sampleTypeMatch) survey.patientInfo.sampleType = sampleTypeMatch[1].trim();
+            
+            // 提取结构变异信息
+            const structuralMatch = content.match(/结构变异[：:]\s*([^\n]+)/);
+            if (structuralMatch) survey.patientInfo.structuralVariants = structuralMatch[1].trim();
+            
+            // 提取实验室结果
+            const labResults = {};
+            const ceaMatch = content.match(/CEA[：:]\s*([^\n]+)/);
+            if (ceaMatch) labResults.CEA = ceaMatch[1].trim();
+            
+            const ca153Match = content.match(/CA 15-3[：:]\s*([^\n]+)/);
+            if (ca153Match) labResults['CA 15-3'] = ca153Match[1].trim();
+            
+            const ca199Match = content.match(/CA 19-9[：:]\s*([^\n]+)/);
+            if (ca199Match) labResults['CA 19-9'] = ca199Match[1].trim();
+            
+            survey.patientInfo.laboratoryResults = labResults;
+            
+            // 提取分期分级详细信息
+            const clinicalGroupMatch = content.match(/临床组别[：:]\s*([^\n]+)/);
+            if (clinicalGroupMatch) survey.patientInfo.clinicalGroup = clinicalGroupMatch[1].trim();
+            
+            const pathologyGroupMatch = content.match(/病理组别[：:]\s*([^\n]+)/);
+            if (pathologyGroupMatch) survey.patientInfo.pathologyGroup = pathologyGroupMatch[1].trim();
+            
+            const summaryMatch = content.match(/摘要[：:]\s*([^\n]+)/);
+            if (summaryMatch) survey.patientInfo.summary = summaryMatch[1].trim();
         }
 
         // 显示上传的问卷
@@ -2067,18 +2607,67 @@
                 surveyCard.className = 'survey-card';
                 surveyCard.onclick = () => openUploadedSurvey(survey.id);
                 
+                // 处理多药方案显示
+                const drugsText = Array.isArray(survey.drugs) ? 
+                    survey.drugs.join(' + ') : 
+                    (survey.drug || survey.drugs || '未知药物');
+                
+                // 构建详细信息
+                const patientInfo = survey.patientInfo || {};
+                let detailsHtml = `
+                    <strong>患者ID:</strong> ${survey.patientId}<br>
+                    <strong>治疗药物:</strong> ${drugsText}<br>
+                `;
+                
+                // 基本信息
+                if (patientInfo.gender || patientInfo.age) {
+                    detailsHtml += `<strong>性别:</strong> ${patientInfo.gender || '未知'} | <strong>年龄:</strong> ${patientInfo.age || '未知'}<br>`;
+                }
+                
+                // 诊断信息
+                if (patientInfo.diagnosis) {
+                    detailsHtml += `<strong>诊断:</strong> ${patientInfo.diagnosis}<br>`;
+                }
+                
+                // 分期信息
+                if (patientInfo.stage) {
+                    detailsHtml += `<strong>分期:</strong> ${patientInfo.stage}<br>`;
+                }
+                
+                // HR/HER2状态
+                if (patientInfo.hrStatus || patientInfo.her2Status) {
+                    const hrText = patientInfo.hrStatus ? `HR: ${patientInfo.hrStatus}` : '';
+                    const her2Text = patientInfo.her2Status ? `HER2: ${patientInfo.her2Status}` : '';
+                    const statusText = [hrText, her2Text].filter(t => t).join(' | ');
+                    if (statusText) {
+                        detailsHtml += `<strong>受体状态:</strong> ${statusText}<br>`;
+                    }
+                }
+                
+                // TMB信息
+                if (patientInfo.tmb) {
+                    detailsHtml += `<strong>TMB:</strong> ${patientInfo.tmb}<br>`;
+                }
+                
+                // MSI信息
+                if (patientInfo.msiStatus) {
+                    detailsHtml += `<strong>MSI状态:</strong> ${patientInfo.msiStatus}<br>`;
+                }
+                
+                // 既往治疗
+                if (patientInfo.previousTreatment) {
+                    detailsHtml += `<strong>既往治疗:</strong> ${patientInfo.previousTreatment}<br>`;
+                }
+                
+                detailsHtml += `<small style="color: #666;">文件: ${survey.fileName}</small>`;
+                
                 surveyCard.innerHTML = `
                     <div class="card-header">
                         <div class="card-title">${survey.title || '问卷'}</div>
                         <div class="card-status status-pending">已上传</div>
                     </div>
                     <div class="card-info">
-                        <strong>患者ID:</strong> ${survey.patientId}<br>
-                        <strong>治疗药物:</strong> ${survey.drug}<br>
-                        <strong>性别:</strong> ${survey.patientInfo.gender || '未知'} | 
-                        <strong>年龄:</strong> ${survey.patientInfo.age || '未知'}<br>
-                        <strong>分期:</strong> ${survey.patientInfo.stage || '未知'}<br>
-                        <small style="color: #666;">文件: ${survey.fileName}</small>
+                        ${detailsHtml}
                     </div>
                 `;
                 
@@ -2092,10 +2681,165 @@
             const survey = surveys.find(s => s.id === surveyId);
             
             if (survey) {
-                // 这里可以动态生成问卷页面或者跳转到对应的问卷
-                alert(`打开问卷: ${survey.title}\n患者ID: ${survey.patientId}\n药物: ${survey.drug}`);
-                // 实际项目中可以在这里跳转到具体的问卷填写页面
+                // 动态生成问卷页面
+                renderSurveyDetail(survey);
+                document.getElementById('survey-detail').classList.add('active');
+                document.getElementById('surveys').classList.remove('active');
             }
+        }
+
+        // 渲染问卷详情页面
+        function renderSurveyDetail(survey) {
+            const patientInfo = survey.patientInfo || {};
+            const drugs = Array.isArray(survey.drugs) ? survey.drugs : [survey.drug || survey.drugs];
+            const drugsText = drugs.filter(d => d).join(' + ');
+            
+            // 更新页面标题
+            const pageHeader = document.querySelector('#survey-detail .page-header h1');
+            if (pageHeader) {
+                pageHeader.textContent = `${survey.title} - 药物反应预测评估`;
+            }
+            
+            // 生成患者信息HTML
+            const patientInfoContainer = document.querySelector('#survey-detail .patient-info .info-grid');
+            if (patientInfoContainer) {
+                patientInfoContainer.innerHTML = generatePatientInfoHTML(survey, patientInfo, drugsText);
+            }
+            
+            // 更新模型报告
+            updateModelReports(survey.modelReports);
+            
+            // 重置表单
+            const form = document.getElementById('survey-form');
+            if (form) {
+                form.reset();
+                // 添加隐藏字段存储当前问卷信息
+                let hiddenPatientId = form.querySelector('input[name="currentPatientId"]');
+                if (!hiddenPatientId) {
+                    hiddenPatientId = document.createElement('input');
+                    hiddenPatientId.type = 'hidden';
+                    hiddenPatientId.name = 'currentPatientId';
+                    form.appendChild(hiddenPatientId);
+                }
+                hiddenPatientId.value = survey.patientId;
+                
+                let hiddenCaseNumber = form.querySelector('input[name="currentCaseNumber"]');
+                if (!hiddenCaseNumber) {
+                    hiddenCaseNumber = document.createElement('input');
+                    hiddenCaseNumber.type = 'hidden';
+                    hiddenCaseNumber.name = 'currentCaseNumber';
+                    form.appendChild(hiddenCaseNumber);
+                }
+                hiddenCaseNumber.value = survey.caseNumber || '';
+            }
+            
+            // 重置评分
+            surveyData.ratings = {};
+            updateProgress();
+        }
+
+        // 生成患者信息HTML
+        function generatePatientInfoHTML(survey, patientInfo, drugsText) {
+            let html = '';
+            
+            // 基本标识信息
+            html += createInfoItem('患者ID', survey.patientId);
+            html += createInfoItem('治疗药物', drugsText);
+            
+            // 基本信息
+            if (patientInfo.gender) html += createInfoItem('性别', patientInfo.gender);
+            if (patientInfo.age) html += createInfoItem('年龄', patientInfo.age);
+            if (patientInfo.race) html += createInfoItem('种族', patientInfo.race);
+            if (patientInfo.ethnicity) html += createInfoItem('族裔', patientInfo.ethnicity);
+            if (patientInfo.smoking) html += createInfoItem('吸烟史', patientInfo.smoking);
+            
+            // 诊断与分期
+            if (patientInfo.diagnosis) html += createInfoItem('诊断', patientInfo.diagnosis);
+            if (patientInfo.stage) html += createInfoItem('最高记录分期', patientInfo.stage);
+            if (patientInfo.clinicalGroup) html += createInfoItem('临床组别', patientInfo.clinicalGroup);
+            if (patientInfo.pathologyGroup) html += createInfoItem('病理组别', patientInfo.pathologyGroup);
+            if (patientInfo.summary) html += createInfoItem('分期摘要', patientInfo.summary);
+            
+            // 生物标志物
+            if (patientInfo.hrStatus) html += createInfoItem('HR状态', patientInfo.hrStatus);
+            if (patientInfo.her2Status) html += createInfoItem('HER2状态', patientInfo.her2Status);
+            
+            // 基因信息
+            if (patientInfo.tmb) html += createInfoItem('TMB (非同义突变)', patientInfo.tmb);
+            if (patientInfo.msiStatus) html += createInfoItem('MSI状态', patientInfo.msiStatus);
+            if (patientInfo.msiScore) html += createInfoItem('MSI评分', patientInfo.msiScore);
+            if (patientInfo.structuralVariants) html += createInfoItem('结构变异', patientInfo.structuralVariants);
+            
+            // 样本信息
+            if (patientInfo.sampleId) html += createInfoItem('样本ID', patientInfo.sampleId);
+            if (patientInfo.cancerType) html += createInfoItem('癌症类型', patientInfo.cancerType);
+            if (patientInfo.cancerDetailType) html += createInfoItem('癌症详细类型', patientInfo.cancerDetailType);
+            if (patientInfo.primarySite) html += createInfoItem('原发部位', patientInfo.primarySite);
+            if (patientInfo.sampleType) html += createInfoItem('样本类型', patientInfo.sampleType);
+            
+            // 既往治疗
+            if (patientInfo.previousTreatment) html += createInfoItem('既往主要治疗', patientInfo.previousTreatment);
+            if (patientInfo.previousDrugStatus) html += createInfoItem('既往用药状态', patientInfo.previousDrugStatus);
+            
+            // 实验室结果
+            if (patientInfo.laboratoryResults && Object.keys(patientInfo.laboratoryResults).length > 0) {
+                for (const [key, value] of Object.entries(patientInfo.laboratoryResults)) {
+                    if (value) html += createInfoItem(key, value);
+                }
+            }
+            
+            // 基因突变 (放在最后，可能很长)
+            if (patientInfo.mutations) {
+                html += `
+                    <div class="info-item" style="grid-column: 1 / -1;">
+                        <div class="info-label">关键基因突变</div>
+                        <div class="info-value" style="word-break: break-all; line-height: 1.4;">${patientInfo.mutations}</div>
+                    </div>
+                `;
+            }
+            
+            return html;
+        }
+
+        // 创建信息项HTML
+        function createInfoItem(label, value) {
+            if (!value) return '';
+            return `
+                <div class="info-item">
+                    <div class="info-label">${label}</div>
+                    <div class="info-value">${value}</div>
+                </div>
+            `;
+        }
+
+        // 更新模型报告
+        function updateModelReports(modelReports) {
+            if (!modelReports) return;
+            
+            const modelAContent = document.getElementById('modelA-content');
+            const modelBContent = document.getElementById('modelB-content');
+            
+            if (modelAContent && modelReports.modelA) {
+                modelAContent.innerHTML = formatModelReport(modelReports.modelA);
+            }
+            
+            if (modelBContent && modelReports.modelB) {
+                modelBContent.innerHTML = formatModelReport(modelReports.modelB);
+            }
+        }
+
+        // 格式化模型报告
+        function formatModelReport(reportText) {
+            if (!reportText) return '';
+            
+            // 将纯文本转换为HTML格式
+            return reportText
+                .replace(/\n\n/g, '</p><p>')
+                .replace(/\n/g, '<br>')
+                .replace(/^\s*/, '<p>')
+                .replace(/\s*$/, '</p>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>');
         }
     </script>
 </body>
