@@ -1,0 +1,2102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI药物反应预测评估系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .nav-buttons {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .nav-btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            background: #667eea;
+            color: white;
+        }
+
+        .nav-btn:hover {
+            background: #5a6fd8;
+            transform: translateY(-1px);
+        }
+
+        .nav-btn.active {
+            background: #764ba2;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            background: #667eea;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .logout-btn {
+            padding: 0.25rem 0.75rem;
+            border: 1px solid #ddd;
+            background: white;
+            color: #666;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .logout-btn:hover {
+            background: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+
+        .page {
+            display: none;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .page.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        /* 登录页面样式 */
+        .login-container {
+            max-width: 500px;
+            margin: 10vh auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+            overflow: hidden;
+        }
+
+        .login-header {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .login-form {
+            padding: 2rem;
+        }
+
+        .form-step {
+            display: none;
+        }
+
+        .form-step.active {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .page-header {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .page-content {
+            padding: 2rem;
+        }
+
+        .disease-tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .disease-tab {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            background: none;
+            color: #666;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .disease-tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .upload-area {
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 3rem;
+            text-align: center;
+            margin: 2rem 0;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .upload-area:hover {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        .upload-area.dragover {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .survey-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .survey-card {
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            background: white;
+        }
+
+        .survey-card:hover {
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+
+        .survey-card.completed {
+            border-color: #4caf50;
+            background: rgba(76, 175, 80, 0.05);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+
+        .card-title {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .card-status {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-completed {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .card-info {
+            font-size: 0.9rem;
+            color: #666;
+            line-height: 1.4;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .radio-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .radio-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            border-radius: 6px;
+            transition: background 0.3s ease;
+        }
+
+        .radio-item:hover {
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        .select-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+        }
+
+        .rating-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        .rating-table th,
+        .rating-table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+
+        .rating-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+        }
+
+        .rating-controls {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: center;
+        }
+
+        .rating-btn {
+            width: 40px;
+            height: 40px;
+            border: 2px solid #ddd;
+            border-radius: 50%;
+            background: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .rating-btn:hover {
+            border-color: #667eea;
+        }
+
+        .rating-btn.selected {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .model-report {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            border-left: 4px solid #667eea;
+        }
+
+        .report-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            cursor: pointer;
+        }
+
+        .report-content {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            border-radius: 6px;
+            padding: 1rem;
+            background: white;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .btn {
+            padding: 0.75rem 2rem;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5a6fd8;
+            transform: translateY(-1px);
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #eee;
+            border-radius: 4px;
+            margin: 1rem 0;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .patient-info {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .info-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .info-label {
+            font-weight: 600;
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .info-value {
+            color: #333;
+        }
+
+        .section-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin: 2rem 0 1rem 0;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .step-indicator {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 2rem;
+        }
+
+        .step {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #ddd;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 1rem;
+            font-weight: bold;
+        }
+
+        .step.active {
+            background: #667eea;
+        }
+
+        .step.completed {
+            background: #28a745;
+        }
+
+        .welcome-message {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 2rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin: 2rem 0;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 8px;
+            text-align: center;
+            border-left: 4px solid #667eea;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #333;
+            margin: 0.5rem 0;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 0 1rem;
+            }
+            
+            .nav {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .survey-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .rating-controls {
+                flex-wrap: wrap;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .select-group {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 登录界面 -->
+    <div id="login-container" class="login-container">
+        <div class="login-header">
+            <h1>🏥 AI药物反应预测评估系统</h1>
+            <p>临床专家登录</p>
+        </div>
+        <div class="login-form">
+            <!-- 步骤指示器 -->
+            <div class="step-indicator">
+                <div class="step active" id="step1">1</div>
+                <div class="step" id="step2">2</div>
+            </div>
+
+            <!-- 第一步：基本信息 -->
+            <div class="form-step active" id="login-step1">
+                <h3 style="margin-bottom: 1.5rem;">基本信息</h3>
+                
+                <div class="form-group">
+                    <label class="form-label" for="doctor-name">姓名 *</label>
+                    <input type="text" id="doctor-name" class="form-control" placeholder="请输入您的姓名" required>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label" for="doctor-title">职称 *</label>
+                        <select id="doctor-title" class="form-control" required>
+                            <option value="">请选择职称</option>
+                            <option value="住院医师">住院医师</option>
+                            <option value="主治医师">主治医师</option>
+                            <option value="副主任医师">副主任医师</option>
+                            <option value="主任医师">主任医师</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="doctor-experience">工作年资 *</label>
+                        <select id="doctor-experience" class="form-control" required>
+                            <option value="">请选择年资</option>
+                            <option value="1-3年">1-3年</option>
+                            <option value="4-7年">4-7年</option>
+                            <option value="8-15年">8-15年</option>
+                            <option value="15年以上">15年以上</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="doctor-specialty">专业方向 *</label>
+                    <select id="doctor-specialty" class="form-control" required>
+                        <option value="">请选择专业方向</option>
+                        <option value="肿瘤内科">肿瘤内科</option>
+                        <option value="乳腺外科">乳腺外科</option>
+                        <option value="胸外科">胸外科</option>
+                        <option value="呼吸内科">呼吸内科</option>
+                        <option value="病理科">病理科</option>
+                        <option value="其他">其他</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="doctor-hospital">所在医院</label>
+                    <input type="text" id="doctor-hospital" class="form-control" placeholder="请输入医院名称">
+                </div>
+
+                <button type="button" class="btn btn-primary" onclick="nextStep()">下一步</button>
+            </div>
+
+            <!-- 第二步：登录设置 -->
+            <div class="form-step" id="login-step2">
+                <h3 style="margin-bottom: 1.5rem;">登录设置</h3>
+                
+                <div class="form-group">
+                    <label class="form-label" for="username">用户名 *</label>
+                    <input type="text" id="username" class="form-control" placeholder="请设置用户名（建议使用姓名拼音）" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="password">密码 *</label>
+                    <input type="password" id="password" class="form-control" placeholder="请设置密码（不少于6位）" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="confirm-password">确认密码 *</label>
+                    <input type="password" id="confirm-password" class="form-control" placeholder="请再次输入密码" required>
+                </div>
+
+                <div style="display: flex; gap: 1rem;">
+                    <button type="button" class="btn btn-secondary" onclick="prevStep()">上一步</button>
+                    <button type="button" class="btn btn-success" onclick="completeRegistration()">完成注册</button>
+                </div>
+
+                <div style="margin-top: 2rem; text-align: center; color: #666; font-size: 0.9rem;">
+                    已有账号？<a href="#" onclick="showLogin()" style="color: #667eea;">直接登录</a>
+                </div>
+            </div>
+
+            <!-- 直接登录表单 -->
+            <div class="form-step" id="direct-login">
+                <h3 style="margin-bottom: 1.5rem;">用户登录</h3>
+                
+                <div class="form-group">
+                    <label class="form-label" for="login-username">用户名</label>
+                    <input type="text" id="login-username" class="form-control" placeholder="请输入用户名">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="login-password">密码</label>
+                    <input type="password" id="login-password" class="form-control" placeholder="请输入密码">
+                </div>
+
+                <button type="button" class="btn btn-primary" onclick="directLogin()">登录</button>
+
+                <div style="margin-top: 2rem; text-align: center; color: #666; font-size: 0.9rem;">
+                    首次使用？<a href="#" onclick="showRegistration()" style="color: #667eea;">注册账号</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主界面 -->
+    <div id="main-app" style="display: none;">
+        <header class="header">
+            <nav class="nav">
+                <div class="logo">AI药物反应预测评估系统</div>
+                <div class="nav-buttons">
+                    <!-- 管理员菜单 -->
+                    <div id="admin-nav" style="display: none;">
+                        <button class="nav-btn active" onclick="showPage('admin')">管理界面</button>
+                        <button class="nav-btn" onclick="showPage('results')">结果统计</button>
+                    </div>
+                    <!-- 普通用户菜单 -->
+                    <button class="nav-btn active" onclick="showPage('surveys')">问卷填写</button>
+                </div>
+                <div class="user-info">
+                    <div class="user-avatar" id="user-avatar"></div>
+                    <div>
+                        <div id="user-name" style="font-weight: bold;"></div>
+                        <div id="user-title" style="font-size: 0.8rem;"></div>
+                    </div>
+                    <button class="logout-btn" onclick="logout()">退出</button>
+                </div>
+            </nav>
+        </header>
+
+        <div class="container">
+            <!-- 管理界面 (仅管理员可见) -->
+            <div id="admin" class="page active">
+                <div class="page-header">
+                    <h1>问卷管理系统</h1>
+                    <p>上传和管理临床评估问卷</p>
+                </div>
+                <div class="page-content">
+                    <div class="disease-tabs">
+                        <button class="disease-tab active" onclick="switchDiseaseTab('breast_cancer', this)">乳腺癌</button>
+                        <button class="disease-tab" onclick="switchDiseaseTab('lung_cancer', this)">非小细胞肺癌</button>
+                    </div>
+
+                    <div id="breast_cancer_content" class="disease-content">
+                        <div class="upload-area" onclick="document.getElementById('breast-upload').click()">
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">📋</div>
+                            <h3>上传乳腺癌问卷文件</h3>
+                            <p>支持 .md, .txt, .json 格式，点击或拖拽上传</p>
+                            <input type="file" id="breast-upload" accept=".md,.txt,.json" multiple style="display: none;">
+                        </div>
+                        <div id="breast-surveys" class="survey-grid"></div>
+                    </div>
+
+                    <div id="lung_cancer_content" class="disease-content" style="display: none;">
+                        <div class="upload-area" onclick="document.getElementById('lung-upload').click()">
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">📋</div>
+                            <h3>上传非小细胞肺癌问卷文件</h3>
+                            <p>支持 .md, .txt, .json 格式，点击或拖拽上传</p>
+                            <button class="btn btn-primary" style="margin-top: 1rem;" onclick="event.stopPropagation(); createTestSurvey('lung_cancer')">创建测试问卷</button>
+                            <input type="file" id="lung-upload" accept=".md,.txt,.json" multiple style="display: none;">
+                        </div>
+                        <div id="lung-surveys" class="survey-grid"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 问卷填写界面 -->
+            <div id="surveys" class="page">
+                <div class="welcome-message">
+                    <h2 id="welcome-text">欢迎，专家医生！</h2>
+                    <p>感谢您参与AI药物反应预测模型的评估工作</p>
+                </div>
+                
+                <div class="page-content">
+                    <div class="disease-tabs">
+                        <button class="disease-tab active" onclick="switchSurveyTab('breast', this)">乳腺癌 (3)</button>
+                        <button class="disease-tab" onclick="switchSurveyTab('lung', this)">非小细胞肺癌 (2)</button>
+                    </div>
+
+                    <div id="breast-survey-list" class="survey-content">
+                        <div class="survey-grid">
+                            <!-- 示例问卷卡片 -->
+                            <div class="survey-card" onclick="openSurvey('P-0000597')">
+                                <div class="card-header">
+                                    <div class="card-title">病例 32</div>
+                                    <div class="card-status status-pending">待完成</div>
+                                </div>
+                                <div class="card-info">
+                                    <strong>患者ID:</strong> P-0000597<br>
+                                    <strong>治疗药物:</strong> 卡培他滨<br>
+                                    <strong>性别:</strong> 女性 | <strong>年龄:</strong> 51岁<br>
+                                    <strong>分期:</strong> IV期
+                                </div>
+                            </div>
+                            
+                            <div class="survey-card completed">
+                                <div class="card-header">
+                                    <div class="card-title">病例 28</div>
+                                    <div class="card-status status-completed">已完成</div>
+                                </div>
+                                <div class="card-info">
+                                    <strong>患者ID:</strong> P-0000523<br>
+                                    <strong>治疗药物:</strong> 多西他赛<br>
+                                    <strong>性别:</strong> 女性 | <strong>年龄:</strong> 45岁<br>
+                                    <strong>分期:</strong> III期
+                                </div>
+                            </div>
+                            
+                            <div class="survey-card">
+                                <div class="card-header">
+                                    <div class="card-title">病例 15</div>
+                                    <div class="card-status status-pending">待完成</div>
+                                </div>
+                                <div class="card-info">
+                                    <strong>患者ID:</strong> P-0000341<br>
+                                    <strong>治疗药物:</strong> 曲妥珠单抗<br>
+                                    <strong>性别:</strong> 女性 | <strong>年龄:</strong> 62岁<br>
+                                    <strong>分期:</strong> II期
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="lung-survey-list" class="survey-content" style="display: none;">
+                        <div class="survey-grid">
+                            <div class="survey-card">
+                                <div class="card-header">
+                                    <div class="card-title">病例 8</div>
+                                    <div class="card-status status-pending">待完成</div>
+                                </div>
+                                <div class="card-info">
+                                    <strong>患者ID:</strong> P-0000201<br>
+                                    <strong>治疗药物:</strong> 奥希替尼<br>
+                                    <strong>性别:</strong> 男性 | <strong>年龄:</strong> 58岁<br>
+                                    <strong>分期:</strong> IV期
+                                </div>
+                            </div>
+                            
+                            <div class="survey-card">
+                                <div class="card-header">
+                                    <div class="card-title">病例 12</div>
+                                    <div class="card-status status-pending">待完成</div>
+                                </div>
+                                <div class="card-info">
+                                    <strong>患者ID:</strong> P-0000287<br>
+                                    <strong>治疗药物:</strong> 培美曲塞<br>
+                                    <strong>性别:</strong> 女性 | <strong>年龄:</strong> 65岁<br>
+                                    <strong>分期:</strong> III期
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 具体问卷填写 -->
+            <div id="survey-detail" class="page">
+                <div class="page-header">
+                    <h1>病例 32 - 药物反应预测评估</h1>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="page-content">
+                    <button class="btn btn-primary" onclick="showPage('surveys')" style="margin-bottom: 2rem;">← 返回问卷列表</button>
+                    
+                    <!-- 患者信息 -->
+                    <div class="patient-info">
+                        <h3 style="margin-bottom: 1rem;">患者临床信息摘要</h3>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <div class="info-label">患者ID</div>
+                                <div class="info-value">P-0000597</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">治疗药物</div>
+                                <div class="info-value">卡培他滨 (CAPECITABINE)</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">性别</div>
+                                <div class="info-value">女性</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">年龄</div>
+                                <div class="info-value">51.0</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">种族</div>
+                                <div class="info-value">黑人或非裔美国人</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">吸烟史</div>
+                                <div class="info-value">从不吸烟</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">诊断</div>
+                                <div class="info-value">浸润性导管癌 | 乳腺，外上象限</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">HR状态</div>
+                                <div class="info-value">阳性</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">HER2状态</div>
+                                <div class="info-value">阴性</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">最高记录分期</div>
+                                <div class="info-value">IV期</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">TMB (非同义突变)</div>
+                                <div class="info-value">7.76</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">关键基因突变</div>
+                                <div class="info-value">TNFAIP3 p.L12M, KMT2C p.S4151F, PTPRD p.M1253K, GATA3 p.L190P, ARID2 p.I486V, BRCA2 p.R2268K, BRCA2 p.L1491Kfs*12</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <form id="survey-form">
+                        <!-- 第一部分：临床预测 -->
+                        <div class="section-title">第一部分：模型性能评估 - 临床预测</div>
+                        
+                        <div class="form-group">
+                            <div class="form-label">1.1 您的预测</div>
+                            <p style="margin-bottom: 1rem;">基于以上患者信息，请根据您的专业知识和临床经验，推断该患者在使用卡培他滨治疗后的药物反应最可能属于哪一类？</p>
+                            <div class="radio-group">
+                                <label class="radio-item">
+                                    <input type="radio" name="prediction" value="positive">
+                                    <strong>积极响应</strong> (CR+PR)
+                                </label>
+                                <label class="radio-item">
+                                    <input type="radio" name="prediction" value="negative">
+                                    <strong>消极响应</strong> (SD+PD)
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="reasoning">1.2 您的主要判断依据是什么？（可选）</label>
+                            <textarea class="form-control" id="reasoning" rows="4" placeholder="请简述影响您判断的关键因素，如特定基因突变、TMB状态、既往治疗史等"></textarea>
+                        </div>
+
+                        <!-- 第二部分：模型输出质量评估 -->
+                        <div class="section-title">第二部分：模型输出文本质量评估</div>
+
+                        <!-- 模型A报告 -->
+                        <div class="model-report">
+                            <div class="report-header" onclick="toggleReport('modelA')">
+                                <h4>模型A：生成的报告</h4>
+                                <span id="modelA-toggle">展开 ▼</span>
+                            </div>
+                            <div class="report-content" id="modelA-content" style="display: none;">
+                                <h4>精准肿瘤学报告</h4>
+                                <p><strong>预测治疗反应评分：</strong> 0.420 / 1.0</p>
+                                <p>（分数越接近1，表示积极响应的可能性越高。）</p>
+                                <h5>推理依据</h5>
+                                <ol>
+                                    <li><strong>BRCA2突变：</strong> BRCA2 p.R2268K和L1491Kfs*12的存在可能通过影响DNA修复途径而影响卡培他滨的疗效。突变对化疗敏感性/耐药性的作用具有复杂性和情境依赖性。</li>
+                                    <li><strong>TMB (7.76)：</strong> 中等基因组不稳定性；TMB对化疗反应的影响存在变异性。</li>
+                                    <li><strong>MSI状态：</strong> MSI评分为-1.0提示未检测到微卫星不稳定性，但微妙的错配修复改变仍可能影响药物反应。</li>
+                                </ol>
+                                <h5>关键临床决定因素：</h5>
+                                <ul>
+                                    <li><strong>体能状态：</strong> 未明确但可能影响预后；较好的体能状态通常与更佳疗效相关。</li>
+                                    <li><strong>既往化疗暴露：</strong> 既往治疗（如来曲唑、他莫昔芬）可能引入交叉耐药风险，但个体反应存在差异。</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- 模型B报告 -->
+                        <div class="model-report">
+                            <div class="report-header" onclick="toggleReport('modelB')">
+                                <h4>模型B：生成的报告</h4>
+                                <span id="modelB-toggle">展开 ▼</span>
+                            </div>
+                            <div class="report-content" id="modelB-content" style="display: none;">
+                                <h4>精准肿瘤学报告</h4>
+                                <p><strong>预测治疗反应评分：</strong> 0.648 / 1.0</p>
+                                <p>（分数越接近1，表示积极响应的可能性越高。）</p>
+                                <h5>推理依据</h5>
+                                <ul>
+                                    <li><strong>基因突变与药物机制：</strong> 卡培他滨代谢为5-氟尿嘧啶（5-FU），通过抑制胸苷酸合成酶（TYMS）干扰DNA合成。患者的BRCA2 p.R2268K和p.L1491Kfs*12突变与同源重组缺陷（HRD）相关，可能因DNA修复受损而增强对5-FU的敏感性。</li>
+                                    <li><strong>临床与生物标志物背景：</strong> 患者为IV期HR+/HER2-乳腺癌，CEA和CA 15-3水平升高提示疾病进展。既往治疗（如来曲唑、哌柏西利）表明存在内分泌耐药，因此卡培他滨是合理选择。</li>
+                                    <li><strong>患者特异性因素：</strong> 患者的非裔美国人族裔可能影响药物代谢（如羧酸酯酶活性较低），从而干扰卡培他滨向5-FU的转化。</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- 评分表 -->
+                        <div class="form-group">
+                            <div class="form-label">2.1 评分表</div>
+                            <p>请根据以下维度对两个模型的报告进行打分 (1=非常差, 5=非常好)</p>
+                            
+                            <table class="rating-table">
+                                <thead>
+                                    <tr>
+                                        <th>评估维度</th>
+                                        <th>模型A (1-5分)</th>
+                                        <th>模型B (1-5分)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>
+                                            <strong>可读性</strong><br>
+                                            <small>报告结构清晰、语言流畅、易于理解</small>
+                                        </td>
+                                        <td>
+                                            <div class="rating-controls">
+                                                <button type="button" class="rating-btn" onclick="setRating('readability_a', 1, this)">1</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('readability_a', 2, this)">2</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('readability_a', 3, this)">3</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('readability_a', 4, this)">4</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('readability_a', 5, this)">5</button>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="rating-controls">
+                                                <button type="button" class="rating-btn" onclick="setRating('readability_b', 1, this)">1</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('readability_b', 2, this)">2</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('readability_b', 3, this)">3</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('readability_b', 4, this)">4</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('readability_b', 5, this)">5</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>
+                                            <strong>信息完整性</strong><br>
+                                            <small>关键临床和基因信息的呈现是否全面</small>
+                                        </td>
+                                        <td>
+                                            <div class="rating-controls">
+                                                <button type="button" class="rating-btn" onclick="setRating('completeness_a', 1, this)">1</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('completeness_a', 2, this)">2</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('completeness_a', 3, this)">3</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('completeness_a', 4, this)">4</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('completeness_a', 5, this)">5</button>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="rating-controls">
+                                                <button type="button" class="rating-btn" onclick="setRating('completeness_b', 1, this)">1</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('completeness_b', 2, this)">2</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('completeness_b', 3, this)">3</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('completeness_b', 4, this)">4</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('completeness_b', 5, this)">5</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>
+                                            <strong>推理逻辑性</strong><br>
+                                            <small>AI分析部分的逻辑链条是否清晰、严谨、有说服力</small>
+                                        </td>
+                                        <td>
+                                            <div class="rating-controls">
+                                                <button type="button" class="rating-btn" onclick="setRating('logic_a', 1, this)">1</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('logic_a', 2, this)">2</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('logic_a', 3, this)">3</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('logic_a', 4, this)">4</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('logic_a', 5, this)">5</button>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="rating-controls">
+                                                <button type="button" class="rating-btn" onclick="setRating('logic_b', 1, this)">1</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('logic_b', 2, this)">2</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('logic_b', 3, this)">3</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('logic_b', 4, this)">4</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('logic_b', 5, this)">5</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>
+                                            <strong>临床洞察力</strong><br>
+                                            <small>推理是否结合了深度的临床背景和药物机制知识</small>
+                                        </td>
+                                        <td>
+                                            <div class="rating-controls">
+                                                <button type="button" class="rating-btn" onclick="setRating('insight_a', 1, this)">1</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('insight_a', 2, this)">2</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('insight_a', 3, this)">3</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('insight_a', 4, this)">4</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('insight_a', 5, this)">5</button>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="rating-controls">
+                                                <button type="button" class="rating-btn" onclick="setRating('insight_b', 1, this)">1</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('insight_b', 2, this)">2</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('insight_b', 3, this)">3</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('insight_b', 4, this)">4</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('insight_b', 5, this)">5</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>
+                                            <strong>临床实用性</strong><br>
+                                            <small>报告在多大程度上能辅助实际的临床决策</small>
+                                        </td>
+                                        <td>
+                                            <div class="rating-controls">
+                                                <button type="button" class="rating-btn" onclick="setRating('utility_a', 1, this)">1</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('utility_a', 2, this)">2</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('utility_a', 3, this)">3</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('utility_a', 4, this)">4</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('utility_a', 5, this)">5</button>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="rating-controls">
+                                                <button type="button" class="rating-btn" onclick="setRating('utility_b', 1, this)">1</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('utility_b', 2, this)">2</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('utility_b', 3, this)">3</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('utility_b', 4, this)">4</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('utility_b', 5, this)">5</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>
+                                            <strong>总体可信度</strong><br>
+                                            <small>您在多大程度上信任该报告的结论和推理过程</small>
+                                        </td>
+                                        <td>
+                                            <div class="rating-controls">
+                                                <button type="button" class="rating-btn" onclick="setRating('trust_a', 1, this)">1</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('trust_a', 2, this)">2</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('trust_a', 3, this)">3</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('trust_a', 4, this)">4</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('trust_a', 5, this)">5</button>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="rating-controls">
+                                                <button type="button" class="rating-btn" onclick="setRating('trust_b', 1, this)">1</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('trust_b', 2, this)">2</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('trust_b', 3, this)">3</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('trust_b', 4, this)">4</button>
+                                                <button type="button" class="rating-btn" onclick="setRating('trust_b', 5, this)">5</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- 综合偏好 -->
+                        <div class="form-group">
+                            <div class="form-label">2.2 综合偏好</div>
+                            <p>总体而言，如果要在临床工作中使用，您更偏好哪个模型的报告？</p>
+                            <div class="radio-group">
+                                <label class="radio-item">
+                                    <input type="radio" name="preference" value="model_a">
+                                    <strong>模型 A</strong>
+                                </label>
+                                <label class="radio-item">
+                                    <input type="radio" name="preference" value="model_b">
+                                    <strong>模型 B</strong>
+                                </label>
+                                <label class="radio-item">
+                                    <input type="radio" name="preference" value="no_difference">
+                                    <strong>两者无明显差异</strong>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="preference-reason">2.3 请简要说明您做出偏好选择的理由（可选）</label>
+                            <textarea class="form-control" id="preference-reason" rows="4" placeholder="请说明您的选择理由"></textarea>
+                        </div>
+
+                        <!-- 其他反馈 -->
+                        <div class="form-group">
+                            <label class="form-label" for="additional-feedback">您的宝贵意见（可选）</label>
+                            <textarea class="form-control" id="additional-feedback" rows="4" placeholder="如果您对本次评估或AI模型有任何额外的建议或反馈，请在此处填写"></textarea>
+                        </div>
+
+                        <div style="text-align: center; margin-top: 2rem;">
+                            <button type="button" class="btn btn-success" onclick="submitSurvey()">提交问卷</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 结果统计 (仅管理员可见) -->
+            <div id="results" class="page">
+                <div class="page-header">
+                    <h1>评估结果统计</h1>
+                    <p>查看问卷收集结果和数据分析</p>
+                </div>
+                <div class="page-content">
+                    <div class="disease-tabs">
+                        <button class="disease-tab active">总体统计</button>
+                        <button class="disease-tab">乳腺癌</button>
+                        <button class="disease-tab">非小细胞肺癌</button>
+                    </div>
+
+                    <div class="stats-grid" id="stats-container">
+                        <!-- 统计数据将通过JavaScript动态加载 -->
+                    </div>
+
+                    <div style="display: flex; gap: 1rem; align-items: center;">
+                        <button class="btn btn-primary" onclick="exportResults()">导出结果数据</button>
+                        <button class="btn btn-secondary" onclick="clearAllData()">清空所有数据</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        const userData = {
+            currentUser: null,
+            users: [
+                // 预设管理员账户
+                {
+                    username: 'admin',
+                    password: 'admin123',
+                    name: '系统管理员',
+                    title: '管理员',
+                    role: 'admin'
+                }
+            ]
+        };
+
+        const surveyData = {
+            ratings: {},
+            surveys: {
+                breast_cancer: [],
+                lung_cancer: []
+            }
+        };
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            checkLogin();
+            initFileUpload();
+            
+            // 监听表单变化
+            document.addEventListener('change', (e) => {
+                if (e.target.type === 'radio') {
+                    updateProgress();
+                }
+            });
+        });
+
+        // 检查登录状态
+        function checkLogin() {
+            const savedUser = localStorage.getItem('currentUser');
+            if (savedUser) {
+                userData.currentUser = JSON.parse(savedUser);
+                showMainApp();
+            } else {
+                showLogin();
+            }
+        }
+
+        // 显示主应用
+        function showMainApp() {
+            document.getElementById('login-container').style.display = 'none';
+            document.getElementById('main-app').style.display = 'block';
+            
+            const user = userData.currentUser;
+            
+            // 更新用户信息显示
+            document.getElementById('user-avatar').textContent = user.name.charAt(0);
+            document.getElementById('user-name').textContent = user.name;
+            document.getElementById('user-title').textContent = user.title + (user.specialty ? ' | ' + user.specialty : '');
+            document.getElementById('welcome-text').textContent = `欢迎，${user.name} ${user.title}！`;
+            
+            // 根据角色显示不同功能
+            if (user.role === 'admin') {
+                document.getElementById('admin-nav').style.display = 'flex';
+                showPage('admin');
+                // 预加载统计数据和上传的问卷
+                loadStatistics();
+                loadUploadedSurveys();
+            } else {
+                document.getElementById('admin-nav').style.display = 'none';
+                showPage('surveys');
+            }
+        }
+
+        // 加载已上传的问卷
+        function loadUploadedSurveys() {
+            const surveys = JSON.parse(localStorage.getItem('uploadedSurveys') || '[]');
+            
+            // 清空现有显示
+            const breastContainer = document.querySelector('#breast-surveys');
+            const lungContainer = document.querySelector('#lung-surveys');
+            if (breastContainer) breastContainer.innerHTML = '';
+            if (lungContainer) lungContainer.innerHTML = '';
+            
+            // 显示所有上传的问卷
+            surveys.forEach(survey => {
+                displayUploadedSurvey(survey, survey.diseaseType);
+            });
+            
+            // 如果没有上传的问卷，显示提示
+            if (surveys.length === 0) {
+                [breastContainer, lungContainer].forEach(container => {
+                    if (container) {
+                        container.innerHTML = `
+                            <div style="text-align: center; padding: 2rem; color: #666;">
+                                <p>暂无上传的问卷</p>
+                                <p style="font-size: 0.9rem;">请点击上方的上传区域添加问卷文件</p>
+                            </div>
+                        `;
+                    }
+                });
+            }
+        }
+
+        // 显示登录界面
+        function showLogin() {
+            document.getElementById('login-container').style.display = 'block';
+            document.getElementById('main-app').style.display = 'none';
+        }
+
+        // 注册步骤控制
+        let currentStep = 1;
+
+        function nextStep() {
+            // 验证第一步表单
+            const name = document.getElementById('doctor-name').value;
+            const title = document.getElementById('doctor-title').value;
+            const experience = document.getElementById('doctor-experience').value;
+            const specialty = document.getElementById('doctor-specialty').value;
+            
+            if (!name || !title || !experience || !specialty) {
+                alert('请填写所有必填项！');
+                return;
+            }
+            
+            // 切换到第二步
+            document.getElementById('login-step1').classList.remove('active');
+            document.getElementById('login-step2').classList.add('active');
+            document.getElementById('step1').classList.remove('active');
+            document.getElementById('step1').classList.add('completed');
+            document.getElementById('step2').classList.add('active');
+            currentStep = 2;
+        }
+
+        function prevStep() {
+            document.getElementById('login-step2').classList.remove('active');
+            document.getElementById('login-step1').classList.add('active');
+            document.getElementById('step2').classList.remove('active');
+            document.getElementById('step1').classList.remove('completed');
+            document.getElementById('step1').classList.add('active');
+            currentStep = 1;
+        }
+
+        function showRegistration() {
+            document.getElementById('direct-login').classList.remove('active');
+            document.getElementById('login-step1').classList.add('active');
+            // 重置步骤指示器
+            document.getElementById('step1').classList.add('active');
+            document.getElementById('step2').classList.remove('active', 'completed');
+            currentStep = 1;
+        }
+
+        function showLogin() {
+            document.getElementById('login-step1').classList.remove('active');
+            document.getElementById('login-step2').classList.remove('active');
+            document.getElementById('direct-login').classList.add('active');
+        }
+
+        // 完成注册
+        function completeRegistration() {
+            // 获取所有表单数据
+            const userData = {
+                name: document.getElementById('doctor-name').value,
+                title: document.getElementById('doctor-title').value,
+                experience: document.getElementById('doctor-experience').value,
+                specialty: document.getElementById('doctor-specialty').value,
+                hospital: document.getElementById('doctor-hospital').value,
+                username: document.getElementById('username').value,
+                password: document.getElementById('password').value,
+                confirmPassword: document.getElementById('confirm-password').value,
+                role: 'doctor', // 普通医生角色
+                registrationTime: new Date().toISOString()
+            };
+            
+            // 验证数据
+            if (!userData.name || !userData.title || !userData.experience || 
+                !userData.specialty || !userData.username || !userData.password) {
+                alert('请填写所有必填项！');
+                return;
+            }
+            
+            if (userData.password !== userData.confirmPassword) {
+                alert('两次输入的密码不一致！');
+                return;
+            }
+            
+            if (userData.password.length < 6) {
+                alert('密码长度不能少于6位！');
+                return;
+            }
+            
+            // 检查用户名是否已存在
+            const existingUsers = JSON.parse(localStorage.getItem('users') || '[]');
+            if (existingUsers.some(user => user.username === userData.username)) {
+                alert('用户名已存在，请选择其他用户名！');
+                return;
+            }
+            
+            // 保存用户数据
+            existingUsers.push(userData);
+            localStorage.setItem('users', JSON.stringify(existingUsers));
+            
+            // 自动登录
+            const currentUser = {
+                username: userData.username,
+                name: userData.name,
+                title: userData.title,
+                specialty: userData.specialty,
+                experience: userData.experience,
+                hospital: userData.hospital,
+                role: userData.role
+            };
+            
+            userData.currentUser = currentUser;
+            localStorage.setItem('currentUser', JSON.stringify(currentUser));
+            
+            alert('注册成功！欢迎使用AI药物反应预测评估系统。');
+            showMainApp();
+        }
+
+        // 直接登录
+        function directLogin() {
+            const username = document.getElementById('login-username').value;
+            const password = document.getElementById('login-password').value;
+            
+            if (!username || !password) {
+                alert('请输入用户名和密码！');
+                return;
+            }
+            
+            // 检查用户
+            const users = JSON.parse(localStorage.getItem('users') || '[]');
+            
+            // 添加管理员账户到检查列表
+            const allUsers = [
+                {
+                    username: 'admin',
+                    password: 'admin123',
+                    name: '系统管理员',
+                    title: '管理员',
+                    role: 'admin'
+                },
+                ...users
+            ];
+            
+            const user = allUsers.find(u => u.username === username && u.password === password);
+            
+            if (user) {
+                const currentUser = {
+                    username: user.username,
+                    name: user.name,
+                    title: user.title,
+                    specialty: user.specialty,
+                    experience: user.experience,
+                    hospital: user.hospital,
+                    role: user.role
+                };
+                
+                userData.currentUser = currentUser;
+                localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                showMainApp();
+            } else {
+                alert('用户名或密码错误！');
+            }
+        }
+
+        // 退出登录
+        function logout() {
+            if (confirm('确定要退出登录吗？')) {
+                userData.currentUser = null;
+                localStorage.removeItem('currentUser');
+                showLogin();
+                
+                // 重置表单
+                document.getElementById('login-username').value = '';
+                document.getElementById('login-password').value = '';
+            }
+        }
+
+        // 创建测试问卷
+        function createTestSurvey(diseaseType) {
+            if (userData.currentUser.role !== 'admin') {
+                alert('只有管理员可以创建测试问卷！');
+                return;
+            }
+            
+            const testSurveys = {
+                breast_cancer: {
+                    title: "病例 32",
+                    caseNumber: "32",
+                    patientId: "P-0000597",
+                    drug: "卡培他滨 (CAPECITABINE)",
+                    patientInfo: {
+                        gender: "女性",
+                        age: "51.0",
+                        race: "黑人或非裔美国人",
+                        smoking: "从不吸烟",
+                        diagnosis: "浸润性导管癌 | 乳腺，外上象限 (M8500/3 | C504)",
+                        stage: "IV期",
+                        tmb: "7.76",
+                        mutations: "TNFAIP3 p.L12M, KMT2C p.S4151F, PTPRD p.M1253K, GATA3 p.L190P, ARID2 p.I486V, BRCA2 p.R2268K, BRCA2 p.L1491Kfs*12"
+                    },
+                    modelReports: {
+                        modelA: "预测治疗反应评分: 0.420 / 1.0\n推理依据:\n1. BRCA2突变: 可能通过影响DNA修复途径而影响卡培他滨的疗效\n2. TMB (7.76): 中等基因组不稳定性",
+                        modelB: "预测治疗反应评分: 0.648 / 1.0\n推理依据:\n基因突变与药物机制: 卡培他滨代谢为5-氟尿嘧啶，患者的BRCA2突变可能增强对5-FU的敏感性"
+                    }
+                },
+                lung_cancer: {
+                    title: "病例 8",
+                    caseNumber: "8",
+                    patientId: "P-0000201",
+                    drug: "奥希替尼 (OSIMERTINIB)",
+                    patientInfo: {
+                        gender: "男性",
+                        age: "58",
+                        race: "亚洲人",
+                        smoking: "既往吸烟",
+                        diagnosis: "肺腺癌",
+                        stage: "IV期",
+                        tmb: "4.2",
+                        mutations: "EGFR T790M, EGFR L858R"
+                    },
+                    modelReports: {
+                        modelA: "预测治疗反应评分: 0.85 / 1.0\nEGFR T790M突变对奥希替尼敏感",
+                        modelB: "预测治疗反应评分: 0.78 / 1.0\n三代EGFR-TKI对T790M突变有很好的疗效"
+                    }
+                }
+            };
+            
+            const survey = testSurveys[diseaseType];
+            if (survey) {
+                // 添加系统字段
+                survey.id = Date.now() + '_test_' + Math.random().toString(36).substr(2, 9);
+                survey.diseaseType = diseaseType;
+                survey.uploadTime = new Date().toISOString();
+                survey.fileName = `test_${diseaseType}_${survey.caseNumber}.json`;
+                
+                // 保存到localStorage
+                const existingSurveys = JSON.parse(localStorage.getItem('uploadedSurveys') || '[]');
+                existingSurveys.push(survey);
+                localStorage.setItem('uploadedSurveys', JSON.stringify(existingSurveys));
+                
+                // 更新显示
+                displayUploadedSurvey(survey, diseaseType);
+                loadStatistics();
+                
+                alert(`测试问卷"${survey.title}"创建成功！`);
+            }
+        }
+        function clearAllData() {
+            if (confirm('确定要清空所有数据吗？这将删除所有上传的问卷和填写结果！\n\n此操作不可恢复！')) {
+                if (confirm('请再次确认：您真的要删除所有数据吗？')) {
+                    localStorage.removeItem('uploadedSurveys');
+                    localStorage.removeItem('surveyResults');
+                    localStorage.removeItem('totalSurveys');
+                    
+                    // 刷新页面显示
+                    loadUploadedSurveys();
+                    loadStatistics();
+                    
+                    alert('所有数据已清空！');
+                }
+            }
+        }
+
+        // 加载统计数据
+        function loadStatistics() {
+            try {
+                const surveyResults = JSON.parse(localStorage.getItem('surveyResults') || '[]');
+                const users = JSON.parse(localStorage.getItem('users') || '[]');
+                const uploadedSurveys = JSON.parse(localStorage.getItem('uploadedSurveys') || '[]');
+                
+                // 从上传的问卷数量获取真实总数
+                const totalUploaded = uploadedSurveys.length;
+                const completed = surveyResults.length;
+                const inProgress = Math.max(0, Math.floor(totalUploaded * 0.2)); // 假设20%在进行中
+                const pending = Math.max(0, totalUploaded - completed - inProgress);
+                const completionRate = totalUploaded > 0 ? ((completed / totalUploaded) * 100).toFixed(1) : '0';
+                
+                const statsContainer = document.getElementById('stats-container');
+                if (statsContainer) {
+                    statsContainer.innerHTML = `
+                        <div class="stat-card">
+                            <h3 style="color: #667eea; margin-bottom: 1rem;">总问卷数</h3>
+                            <div class="stat-number">${totalUploaded}</div>
+                            <div class="stat-label">已上传问卷</div>
+                        </div>
+                        <div class="stat-card">
+                            <h3 style="color: #28a745; margin-bottom: 1rem;">已完成</h3>
+                            <div class="stat-number">${completed}</div>
+                            <div class="stat-label">完成率: ${completionRate}%</div>
+                        </div>
+                        <div class="stat-card">
+                            <h3 style="color: #ffc107; margin-bottom: 1rem;">进行中</h3>
+                            <div class="stat-number">${inProgress}</div>
+                            <div class="stat-label">部分完成</div>
+                        </div>
+                        <div class="stat-card">
+                            <h3 style="color: #dc3545; margin-bottom: 1rem;">未开始</h3>
+                            <div class="stat-number">${pending}</div>
+                            <div class="stat-label">等待填写</div>
+                        </div>
+                        <div class="stat-card">
+                            <h3 style="color: #17a2b8; margin-bottom: 1rem;">注册医生</h3>
+                            <div class="stat-number">${users.length}</div>
+                            <div class="stat-label">参与专家</div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('加载统计数据时出错:', error);
+                const statsContainer = document.getElementById('stats-container');
+                if (statsContainer) {
+                    statsContainer.innerHTML = '<div class="stat-card"><p style="color: red;">加载统计数据失败</p></div>';
+                }
+            }
+        }
+
+        // 页面切换
+        function showPage(pageId) {
+            // 权限检查
+            if ((pageId === 'admin' || pageId === 'results') && userData.currentUser.role !== 'admin') {
+                alert('您没有权限访问该页面！');
+                return;
+            }
+            
+            // 隐藏所有页面
+            document.querySelectorAll('.page').forEach(page => {
+                page.classList.remove('active');
+            });
+            
+            // 显示目标页面
+            document.getElementById(pageId).classList.add('active');
+            
+            // 如果是结果统计页面，加载最新数据
+            if (pageId === 'results') {
+                loadStatistics();
+            }
+            
+            // 更新导航按钮状态
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // 找到并激活对应的按钮
+            const targetBtn = Array.from(document.querySelectorAll('.nav-btn')).find(btn => 
+                btn.textContent.includes(getPageTitle(pageId))
+            );
+            if (targetBtn) {
+                targetBtn.classList.add('active');
+            }
+        }
+
+        function getPageTitle(pageId) {
+            const titles = {
+                'admin': '管理界面',
+                'surveys': '问卷填写',
+                'results': '结果统计'
+            };
+            return titles[pageId] || '';
+        }
+
+        // 疾病标签切换
+        function switchDiseaseTab(disease, element) {
+            // 更新标签状态
+            element.parentElement.querySelectorAll('.disease-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            element.classList.add('active');
+            
+            // 显示对应内容
+            document.querySelectorAll('.disease-content').forEach(content => {
+                content.style.display = 'none';
+            });
+            document.getElementById(disease + '_content').style.display = 'block';
+        }
+
+        // 问卷标签切换
+        function switchSurveyTab(type, element) {
+            element.parentElement.querySelectorAll('.disease-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            element.classList.add('active');
+            
+            document.querySelectorAll('.survey-content').forEach(content => {
+                content.style.display = 'none';
+            });
+            document.getElementById(type + '-survey-list').style.display = 'block';
+        }
+
+        // 打开具体问卷
+        function openSurvey(patientId) {
+            document.getElementById('survey-detail').classList.add('active');
+            document.getElementById('surveys').classList.remove('active');
+            updateProgress();
+        }
+
+        // 更新进度条
+        function updateProgress() {
+            const form = document.getElementById('survey-form');
+            if (!form) return;
+            
+            const requiredInputs = form.querySelectorAll('input[type="radio"]:checked');
+            const totalRequired = 8; // 预测 + 偏好 + 6个评分维度
+            const progress = Math.min((requiredInputs.length / totalRequired) * 100, 100);
+            
+            const progressFill = document.querySelector('.progress-fill');
+            if (progressFill) {
+                progressFill.style.width = progress + '%';
+            }
+        }
+
+        // 设置评分
+        function setRating(category, value, element) {
+            surveyData.ratings[category] = value;
+            
+            // 更新按钮状态
+            const container = element.parentElement;
+            container.querySelectorAll('.rating-btn').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+            element.classList.add('selected');
+            
+            updateProgress();
+        }
+
+        // 切换报告显示
+        function toggleReport(modelId) {
+            const content = document.getElementById(modelId + '-content');
+            const toggle = document.getElementById(modelId + '-toggle');
+            
+            if (content && toggle) {
+                if (content.style.display === 'none') {
+                    content.style.display = 'block';
+                    toggle.textContent = '收起 ▲';
+                } else {
+                    content.style.display = 'none';
+                    toggle.textContent = '展开 ▼';
+                }
+            }
+        }
+
+        // 提交问卷
+        function submitSurvey() {
+            const form = document.getElementById('survey-form');
+            if (!form) return;
+            
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData);
+            
+            // 添加评分数据
+            data.ratings = surveyData.ratings;
+            data.reasoning = document.getElementById('reasoning')?.value || '';
+            data.preferenceReason = document.getElementById('preference-reason')?.value || '';
+            data.additionalFeedback = document.getElementById('additional-feedback')?.value || '';
+            data.timestamp = new Date().toISOString();
+            data.doctorInfo = userData.currentUser;
+            data.patientId = 'P-0000597'; // 这里应该根据实际病例ID设置
+            data.caseNumber = '32'; // 病例编号
+            
+            // 保存到本地存储
+            const existingSurveys = JSON.parse(localStorage.getItem('surveyResults') || '[]');
+            existingSurveys.push(data);
+            localStorage.setItem('surveyResults', JSON.stringify(existingSurveys));
+            
+            console.log('问卷数据:', data);
+            
+            alert('问卷提交成功！感谢您的参与。');
+            
+            // 如果当前用户是管理员，刷新统计数据
+            if (userData.currentUser.role === 'admin') {
+                loadStatistics();
+            }
+            
+            showPage('surveys');
+        }
+
+        // 导出结果
+        function exportResults() {
+            try {
+                const surveyResults = JSON.parse(localStorage.getItem('surveyResults') || '[]');
+                const users = JSON.parse(localStorage.getItem('users') || '[]');
+                const uploadedSurveys = JSON.parse(localStorage.getItem('uploadedSurveys') || '[]');
+                
+                // 从上传的问卷数量获取真实总数
+                const totalUploaded = uploadedSurveys.length;
+                const completed = surveyResults.length;
+                const inProgress = Math.max(0, Math.floor(totalUploaded * 0.2));
+                const pending = Math.max(0, totalUploaded - completed - inProgress);
+                
+                const results = {
+                    summary: {
+                        totalSurveys: totalUploaded,
+                        completed: completed,
+                        inProgress: inProgress,
+                        pending: pending,
+                        totalUsers: users.length,
+                        completionRate: totalUploaded > 0 ? ((completed / totalUploaded) * 100).toFixed(1) + '%' : '0%'
+                    },
+                    uploadedSurveys: uploadedSurveys.map(survey => ({
+                        id: survey.id,
+                        title: survey.title,
+                        patientId: survey.patientId,
+                        drug: survey.drug,
+                        diseaseType: survey.diseaseType,
+                        fileName: survey.fileName,
+                        uploadTime: survey.uploadTime
+                    })),
+                    surveyData: surveyResults,
+                    userData: users.map(user => ({
+                        name: user.name || '未知',
+                        title: user.title || '未知',
+                        specialty: user.specialty || '未知',
+                        experience: user.experience || '未知',
+                        hospital: user.hospital || '未填写',
+                        registrationTime: user.registrationTime || new Date().toISOString()
+                    })),
+                    exportTime: new Date().toISOString(),
+                    exportedBy: (userData.currentUser && userData.currentUser.name) || '系统管理员'
+                };
+                
+                const dataStr = JSON.stringify(results, null, 2);
+                const blob = new Blob([dataStr], {type: 'application/json'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'survey_results_' + new Date().toISOString().slice(0,10) + '.json';
+                a.click();
+                URL.revokeObjectURL(url);
+                
+                alert('数据导出成功！文件已下载到您的电脑。');
+            } catch (error) {
+                console.error('导出数据时出错:', error);
+                alert('导出数据时出现错误：' + error.message + '\n请联系系统管理员。');
+            }
+        }
+
+        // 文件上传处理
+        function initFileUpload() {
+            const breastUpload = document.getElementById('breast-upload');
+            const lungUpload = document.getElementById('lung-upload');
+            
+            if (breastUpload) breastUpload.addEventListener('change', handleFileUpload);
+            if (lungUpload) lungUpload.addEventListener('change', handleFileUpload);
+            
+            // 拖拽上传
+            document.querySelectorAll('.upload-area').forEach(area => {
+                area.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    area.classList.add('dragover');
+                });
+                
+                area.addEventListener('dragleave', () => {
+                    area.classList.remove('dragover');
+                });
+                
+                area.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    area.classList.remove('dragover');
+                    const files = e.dataTransfer.files;
+                    handleFileUpload({target: {files}});
+                });
+            });
+        }
+
+        function handleFileUpload(event) {
+            const files = event.target.files;
+            if (userData.currentUser.role !== 'admin') {
+                alert('只有管理员可以上传文件！');
+                return;
+            }
+            
+            if (files.length === 0) {
+                alert('请选择要上传的文件！');
+                return;
+            }
+            
+            const uploadButton = event.target;
+            const diseaseType = uploadButton.id.includes('breast') ? 'breast_cancer' : 'lung_cancer';
+            
+            Array.from(files).forEach(file => {
+                processUploadedFile(file, diseaseType);
+            });
+        }
+
+        // 处理上传的文件
+        function processUploadedFile(file, diseaseType) {
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                try {
+                    const content = e.target.result;
+                    const survey = parseQuestionnaireFile(content, file.name);
+                    
+                    if (survey) {
+                        // 保存问卷到localStorage
+                        const existingSurveys = JSON.parse(localStorage.getItem('uploadedSurveys') || '[]');
+                        survey.id = Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                        survey.diseaseType = diseaseType;
+                        survey.uploadTime = new Date().toISOString();
+                        survey.fileName = file.name;
+                        existingSurveys.push(survey);
+                        localStorage.setItem('uploadedSurveys', JSON.stringify(existingSurveys));
+                        
+                        // 更新显示
+                        displayUploadedSurvey(survey, diseaseType);
+                        
+                        // 更新问卷总数
+                        const currentTotal = parseInt(localStorage.getItem('totalSurveys') || '0');
+                        localStorage.setItem('totalSurveys', (currentTotal + 1).toString());
+                        
+                        alert(`问卷"${file.name}"上传成功！`);
+                        
+                        // 刷新统计数据
+                        if (document.getElementById('stats-container')) {
+                            loadStatistics();
+                        }
+                    } else {
+                        alert(`文件"${file.name}"格式不正确，无法解析！`);
+                    }
+                } catch (error) {
+                    console.error('处理文件时出错:', error);
+                    alert(`处理文件"${file.name}"时出错: ${error.message}`);
+                }
+            };
+            
+            reader.onerror = function() {
+                alert(`读取文件"${file.name}"失败！`);
+            };
+            
+            reader.readAsText(file, 'UTF-8');
+        }
+
+        // 解析问卷文件内容
+        function parseQuestionnaireFile(content, fileName) {
+            try {
+                // 如果是JSON格式
+                if (fileName.endsWith('.json')) {
+                    return JSON.parse(content);
+                }
+                
+                // 解析Markdown格式的问卷
+                const survey = {
+                    title: '',
+                    caseNumber: '',
+                    patientId: '',
+                    drug: '',
+                    patientInfo: {},
+                    modelReports: {
+                        modelA: '',
+                        modelB: ''
+                    }
+                };
+                
+                // 提取病例编号
+                const caseMatch = content.match(/病例\s*(\d+)/);
+                if (caseMatch) {
+                    survey.caseNumber = caseMatch[1];
+                    survey.title = `病例 ${caseMatch[1]}`;
+                }
+                
+                // 提取患者ID
+                const patientIdMatch = content.match(/患者ID[：:]\s*(P-\d+)/);
+                if (patientIdMatch) {
+                    survey.patientId = patientIdMatch[1];
+                }
+                
+                // 提取治疗药物
+                const drugMatch = content.match(/治疗药物[：:]\s*([^\n]+)/);
+                if (drugMatch) {
+                    survey.drug = drugMatch[1].replace(/\s*\([^)]*\)/, '');
+                }
+                
+                // 提取患者基本信息
+                const basicInfoSection = content.match(/\*\*基本信息:\*\*([\s\S]*?)(?:\*\*|$)/);
+                if (basicInfoSection) {
+                    const basicInfo = basicInfoSection[1];
+                    
+                    // 提取各个字段
+                    const genderMatch = basicInfo.match(/性别[：:]?\s*([^\n]+)/);
+                    if (genderMatch) survey.patientInfo.gender = genderMatch[1].trim();
+                    
+                    const ageMatch = basicInfo.match(/年龄[：:]?\s*([^\n]+)/);
+                    if (ageMatch) survey.patientInfo.age = ageMatch[1].trim();
+                    
+                    const raceMatch = basicInfo.match(/种族[：:]?\s*([^\n]+)/);
+                    if (raceMatch) survey.patientInfo.race = raceMatch[1].trim();
+                    
+                    const smokingMatch = basicInfo.match(/吸烟史[：:]?\s*([^\n]+)/);
+                    if (smokingMatch) survey.patientInfo.smoking = smokingMatch[1].trim();
+                }
+                
+                // 提取诊断信息
+                const diagnosisMatch = content.match(/诊断[：:]\s*([^\n]+)/);
+                if (diagnosisMatch) survey.patientInfo.diagnosis = diagnosisMatch[1].trim();
+                
+                // 提取分期
+                const stageMatch = content.match(/最高记录分期[：:]\s*([^\n]+)/);
+                if (stageMatch) survey.patientInfo.stage = stageMatch[1].trim();
+                
+                // 提取TMB
+                const tmbMatch = content.match(/TMB[^：:]*[：:]\s*([^\n]+)/);
+                if (tmbMatch) survey.patientInfo.tmb = tmbMatch[1].trim();
+                
+                // 提取基因突变
+                const mutationMatch = content.match(/关键基因突变[：:]\s*([^\n]+)/);
+                if (mutationMatch) survey.patientInfo.mutations = mutationMatch[1].trim();
+                
+                // 提取模型A报告
+                const modelAMatch = content.match(/\*\*模型A[：:]?生成的报告\*\*([\s\S]*?)(?=\*\*模型B|$)/);
+                if (modelAMatch) {
+                    survey.modelReports.modelA = modelAMatch[1].trim();
+                }
+                
+                // 提取模型B报告
+                const modelBMatch = content.match(/\*\*模型B[：:]?生成的报告\*\*([\s\S]*?)(?=\*\*2\.1|$)/);
+                if (modelBMatch) {
+                    survey.modelReports.modelB = modelBMatch[1].trim();
+                }
+                
+                // 验证必要字段
+                if (!survey.patientId || !survey.drug) {
+                    throw new Error('缺少必要的患者信息（患者ID或治疗药物）');
+                }
+                
+                return survey;
+                
+            } catch (error) {
+                console.error('解析问卷文件时出错:', error);
+                throw error;
+            }
+        }
+
+        // 显示上传的问卷
+        function displayUploadedSurvey(survey, diseaseType) {
+            const containerSelector = diseaseType === 'breast_cancer' ? '#breast-surveys' : '#lung-surveys';
+            const container = document.querySelector(containerSelector);
+            
+            if (container) {
+                const surveyCard = document.createElement('div');
+                surveyCard.className = 'survey-card';
+                surveyCard.onclick = () => openUploadedSurvey(survey.id);
+                
+                surveyCard.innerHTML = `
+                    <div class="card-header">
+                        <div class="card-title">${survey.title || '问卷'}</div>
+                        <div class="card-status status-pending">已上传</div>
+                    </div>
+                    <div class="card-info">
+                        <strong>患者ID:</strong> ${survey.patientId}<br>
+                        <strong>治疗药物:</strong> ${survey.drug}<br>
+                        <strong>性别:</strong> ${survey.patientInfo.gender || '未知'} | 
+                        <strong>年龄:</strong> ${survey.patientInfo.age || '未知'}<br>
+                        <strong>分期:</strong> ${survey.patientInfo.stage || '未知'}<br>
+                        <small style="color: #666;">文件: ${survey.fileName}</small>
+                    </div>
+                `;
+                
+                container.appendChild(surveyCard);
+            }
+        }
+
+        // 打开上传的问卷
+        function openUploadedSurvey(surveyId) {
+            const surveys = JSON.parse(localStorage.getItem('uploadedSurveys') || '[]');
+            const survey = surveys.find(s => s.id === surveyId);
+            
+            if (survey) {
+                // 这里可以动态生成问卷页面或者跳转到对应的问卷
+                alert(`打开问卷: ${survey.title}\n患者ID: ${survey.patientId}\n药物: ${survey.drug}`);
+                // 实际项目中可以在这里跳转到具体的问卷填写页面
+            }
+        }
+    </script>
+</body>
+</html>
