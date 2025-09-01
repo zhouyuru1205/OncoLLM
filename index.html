@@ -1123,9 +1123,14 @@
     <script>
         // GitHub配置
         const GITHUB_CONFIG = {
-            baseUrl: 'https://zhouyuru1205.github.io/OncoLLM/',
-            breastPath: 'questionnaires/breast/',
-            lungPath: 'questionnaires/lung/'
+            // GitHub API配置
+            owner: 'zhouyuru1205',
+            repo: 'OncoLLM',
+            apiBase: 'https://api.github.com/repos/zhouyuru1205/OncoLLM/contents',
+            // GitHub Pages配置（用于获取文件内容）
+            pagesBase: 'https://zhouyuru1205.github.io/OncoLLM',
+            breastPath: 'questionnaires/breast',
+            lungPath: 'questionnaires/lung'
         };
 
         // 全局变量
@@ -1378,42 +1383,50 @@
             
             try {
                 const path = type === 'breast' ? GITHUB_CONFIG.breastPath : GITHUB_CONFIG.lungPath;
-                const url = GITHUB_CONFIG.baseUrl + path;
                 
-                // 首先尝试获取目录列表
-                const response = await fetch(url);
+                // 使用GitHub API获取文件列表
+                const apiUrl = `${GITHUB_CONFIG.apiBase}/${path}`;
+                console.log('正在访问GitHub API:', apiUrl);
+                
+                const response = await fetch(apiUrl);
                 if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: 无法访问GitHub数据`);
+                    throw new Error(`GitHub API错误 ${response.status}: ${response.statusText}`);
                 }
                 
-                const html = await response.text();
+                const fileList = await response.json();
+                console.log('GitHub API返回数据:', fileList);
                 
-                // 解析HTML以获取文件列表
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(html, 'text/html');
+                // 过滤出.json和.md文件
+                const surveyFiles = fileList.filter(file => 
+                    file.type === 'file' && 
+                    (file.name.endsWith('.json') || file.name.endsWith('.md'))
+                );
                 
-                // 查找所有.json或.md文件链接
-                const fileLinks = Array.from(doc.querySelectorAll('a')).filter(link => {
-                    const href = link.getAttribute('href');
-                    return href && (href.endsWith('.json') || href.endsWith('.md'));
-                });
+                console.log(`找到 ${surveyFiles.length} 个问卷文件:`, surveyFiles.map(f => f.name));
                 
                 const surveys = [];
-                const loadPromises = fileLinks.slice(0, 10).map(async (link) => { // 限制加载数量
+                const loadPromises = surveyFiles.slice(0, 20).map(async (file) => { // 增加到20个文件
                     try {
-                        const fileName = link.getAttribute('href').split('/').pop();
-                        const fileUrl = url + fileName;
+                        // 使用GitHub Pages URL获取文件内容
+                        const fileUrl = `${GITHUB_CONFIG.pagesBase}/${path}/${file.name}`;
+                        console.log('加载文件:', fileUrl);
+                        
                         const fileResponse = await fetch(fileUrl);
                         
                         if (fileResponse.ok) {
                             const content = await fileResponse.text();
-                            const survey = parseGitHubSurveyData(content, fileName, type);
+                            const survey = parseGitHubSurveyData(content, file.name, type);
                             if (survey) {
                                 surveys.push(survey);
+                                console.log(`成功解析: ${file.name}`);
+                            } else {
+                                console.warn(`解析失败: ${file.name}`);
                             }
+                        } else {
+                            console.error(`文件加载失败 ${file.name}: ${fileResponse.status}`);
                         }
                     } catch (error) {
-                        console.error(`加载文件 ${link.href} 失败:`, error);
+                        console.error(`加载文件 ${file.name} 失败:`, error);
                     }
                 });
                 
@@ -1435,9 +1448,17 @@
                 if (gridElement) {
                     gridElement.innerHTML = `
                         <div style="text-align: center; padding: 2rem; color: #dc3545;">
-                            <p>❌ 加载失败</p>
+                            <p>加载失败</p>
                             <p style="font-size: 0.9rem;">${error.message}</p>
-                            <button class="btn btn-primary" style="margin-top: 1rem;" onclick="loadGitHubSurveys('${type}')">重试</button>
+                            <div style="margin-top: 1rem;">
+                                <button class="btn btn-primary" onclick="loadGitHubSurveys('${type}')">重试</button>
+                            </div>
+                            <div style="margin-top: 1rem; font-size: 0.8rem; color: #666;">
+                                <p>请确保:</p>
+                                <p>1. GitHub仓库是公开的</p>
+                                <p>2. 文件夹 questionnaires/${type} 存在</p>
+                                <p>3. 网络连接正常</p>
+                            </div>
                         </div>
                     `;
                 }
@@ -1476,14 +1497,30 @@
             }
         }
 
-        // 解析Markdown格式问卷（简化版本）
+        // 解析Markdown格式问卷（改进版本）
         function parseMarkdownSurvey(content, fileName) {
             const survey = {
                 title: '',
                 caseNumber: '',
                 patientId: '',
                 drugs: [],
-                patientInfo: {},
+                patientInfo: {
+                    gender: '',
+                    age: '',
+                    race: '',
+                    smoking: '',
+                    diagnosis: '',
+                    hrStatus: '',
+                    her2Status: '',
+                    stage: '',
+                    tmb: '',
+                    msiStatus: '',
+                    mutations: '',
+                    previousTreatment: '',
+                    sampleType: '',
+                    cancerType: '',
+                    laboratoryResults: {}
+                },
                 modelReports: {
                     modelA: '',
                     modelB: ''
@@ -1491,32 +1528,76 @@
             };
             
             // 基本信息提取
-            const caseMatch = content.match(/病例\s*(\d+)/);
+            const caseMatch = content.match(/(?:病例|Case)\s*[：:]?\s*(\d+)/i);
             if (caseMatch) {
                 survey.caseNumber = caseMatch[1];
                 survey.title = `病例 ${caseMatch[1]}`;
             }
             
-            const patientIdMatch = content.match(/患者ID[：:]\s*(P-[\w\d]+)/);
+            // 患者ID提取（支持多种格式）
+            const patientIdMatch = content.match(/(?:患者ID|Patient\s*ID|ID)[：:]\s*(P-[\w\d-]+)/i);
             if (patientIdMatch) {
                 survey.patientId = patientIdMatch[1];
             }
             
-            const drugMatch = content.match(/治疗药物[：:]\s*([^\n]+)/);
+            // 治疗药物提取（支持多种格式）
+            const drugMatch = content.match(/(?:治疗药物|药物|Drug|Medication)[：:]\s*([^\n\r]+)/i);
             if (drugMatch) {
-                survey.drugs = drugMatch[1].split(/[,，]/).map(d => d.trim()).filter(d => d);
+                const drugText = drugMatch[1].replace(/\([^)]*\)/g, ''); // 移除括号内容
+                survey.drugs = drugText.split(/[,，、;；]/).map(d => d.trim()).filter(d => d.length > 0);
             }
             
-            // 提取模型报告
-            const modelAMatch = content.match(/\*\*模型A[：:]?生成的报告\*\*([\s\S]*?)(?=\*\*模型B|$)/);
+            // 患者基本信息提取
+            const extractPatientInfo = (pattern, field) => {
+                const match = content.match(new RegExp(pattern, 'i'));
+                if (match) survey.patientInfo[field] = match[1].trim();
+            };
+            
+            extractPatientInfo('(?:性别|Gender)[：:]?\\s*([^\n\r]+)', 'gender');
+            extractPatientInfo('(?:年龄|Age)[：:]?\\s*([^\n\r]+)', 'age');
+            extractPatientInfo('(?:种族|Race)[：:]?\\s*([^\n\r]+)', 'race');
+            extractPatientInfo('(?:吸烟史|Smoking)[：:]?\\s*([^\n\r]+)', 'smoking');
+            extractPatientInfo('(?:诊断|Diagnosis)[：:]\\s*([^\n\r]+)', 'diagnosis');
+            extractPatientInfo('(?:HR状态|HR\\s*Status)[：:]\\s*([^\n\r]+)', 'hrStatus');
+            extractPatientInfo('(?:HER2状态|HER2\\s*Status)[：:]\\s*([^\n\r]+)', 'her2Status');
+            extractPatientInfo('(?:最高记录分期|分期|Stage)[：:]\\s*([^\n\r]+)', 'stage');
+            extractPatientInfo('(?:TMB)[^：:]*[：:]\\s*([^\n\r]+)', 'tmb');
+            extractPatientInfo('(?:MSI状态|MSI)[：:]\\s*([^\n\r]+)', 'msiStatus');
+            extractPatientInfo('(?:关键基因突变|基因突变|Mutations?)[：:]\\s*([^\n\r]+)', 'mutations');
+            extractPatientInfo('(?:既往主要治疗|既往治疗|Previous\\s*Treatment)[：:]\\s*([^\n\r]+)', 'previousTreatment');
+            extractPatientInfo('(?:样本类型|Sample\\s*Type)[：:]\\s*([^\n\r]+)', 'sampleType');
+            extractPatientInfo('(?:癌症类型|Cancer\\s*Type)[：:]\\s*([^\n\r]+)', 'cancerType');
+            
+            // 实验室结果提取
+            const labMatches = [
+                { pattern: 'CEA[：:]\\s*([^\n\r]+)', key: 'CEA' },
+                { pattern: 'CA\\s*15-3[：:]\\s*([^\n\r]+)', key: 'CA 15-3' },
+                { pattern: 'CA\\s*19-9[：:]\\s*([^\n\r]+)', key: 'CA 19-9' }
+            ];
+            
+            labMatches.forEach(({ pattern, key }) => {
+                const match = content.match(new RegExp(pattern, 'i'));
+                if (match) survey.patientInfo.laboratoryResults[key] = match[1].trim();
+            });
+            
+            // 模型报告提取（改进的正则表达式）
+            const modelAMatch = content.match(/(?:\*\*)?(?:模型A|Model\s*A)[：:]?(?:生成的报告|Report)?(?:\*\*)?([\s\S]*?)(?=(?:\*\*)?(?:模型B|Model\s*B)|$)/i);
             if (modelAMatch) {
                 survey.modelReports.modelA = modelAMatch[1].trim();
             }
             
-            const modelBMatch = content.match(/\*\*模型B[：:]?生成的报告\*\*([\s\S]*?)(?=\*\*2\.1|$)/);
+            const modelBMatch = content.match(/(?:\*\*)?(?:模型B|Model\s*B)[：:]?(?:生成的报告|Report)?(?:\*\*)?([\s\S]*?)(?=\*\*2\.1|$)/i);
             if (modelBMatch) {
                 survey.modelReports.modelB = modelBMatch[1].trim();
             }
+            
+            // 验证解析结果
+            console.log(`解析 ${fileName}:`, {
+                patientId: survey.patientId,
+                drugs: survey.drugs,
+                hasModelA: !!survey.modelReports.modelA,
+                hasModelB: !!survey.modelReports.modelB
+            });
             
             return survey;
         }
