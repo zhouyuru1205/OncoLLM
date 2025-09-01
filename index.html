@@ -491,7 +491,6 @@
 
         .info-value {
             color: #333;
-            word-wrap: break-word;
         }
 
         .section-title {
@@ -865,11 +864,6 @@
                             </div>
                         </div>
 
-                        <div class="form-group">
-                            <label class="form-label" for="reasoning">1.2 您的主要判断依据是什么？（可选）</label>
-                            <textarea class="form-control" id="reasoning" rows="4" placeholder="请简述影响您判断的关键因素，如特定基因突变、TMB状态、既往治疗史等"></textarea>
-                        </div>
-
                         <!-- 第二部分：模型输出质量评估 -->
                         <div class="section-title">第二部分：模型输出文本质量评估</div>
 
@@ -1075,11 +1069,6 @@
                                     <strong>两者无明显差异</strong>
                                 </label>
                             </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label class="form-label" for="preference-reason">2.3 请简要说明您做出偏好选择的理由（可选）</label>
-                            <textarea class="form-control" id="preference-reason" rows="4" placeholder="请说明您的选择理由"></textarea>
                         </div>
 
                         <!-- 其他反馈 -->
@@ -1406,7 +1395,7 @@
                 console.log(`找到 ${surveyFiles.length} 个问卷文件:`, surveyFiles.map(f => f.name));
                 
                 const surveys = [];
-                const loadPromises = surveyFiles.slice(0, 20).map(async (file) => {
+                const loadPromises = surveyFiles.slice(0, 20).map(async (file) => { // 增加到20个文件
                     try {
                         // 使用GitHub Pages URL获取文件内容
                         const fileUrl = `${GITHUB_CONFIG.pagesBase}/${path}/${file.name}`;
@@ -1498,7 +1487,7 @@
             }
         }
 
-        // 改进的Markdown格式问卷解析
+        // 解析Markdown格式问卷（新格式适配版本）
         function parseMarkdownSurvey(content, fileName) {
             const survey = {
                 title: '',
@@ -1506,25 +1495,35 @@
                 patientId: '',
                 drugs: [],
                 patientInfo: {
-                    // 基本信息
                     gender: '',
                     age: '',
                     race: '',
+                    ethnicity: '',
                     smoking: '',
                     diagnosis: '',
                     hrStatus: '',
                     her2Status: '',
                     stage: '',
+                    ajccStage: '',
                     tmb: '',
                     msiStatus: '',
+                    msiScore: '',
+                    msiType: '',
                     mutations: '',
                     previousTreatment: '',
+                    previousDrugStatus: '',
                     sampleType: '',
                     cancerType: '',
-                    // 实验室结果
-                    laboratoryResults: {},
-                    // 完整原始信息（用于完整显示）
-                    fullInfo: {}
+                    cancerDetailType: '',
+                    primarySite: '',
+                    metastaticSite: '',
+                    sampleId: '',
+                    structuralVariants: '',
+                    clinicalGroup: '',
+                    pathologyGroup: '',
+                    derivedStage: '',
+                    summary: '',
+                    laboratoryResults: {}
                 },
                 modelReports: {
                     modelA: '',
@@ -1532,111 +1531,173 @@
                 }
             };
             
-            // 基本信息提取
-            const caseMatch = content.match(/(?:病例|Case)\s*[：:]?\s*(\d+)/i);
+            // 提取病例编号
+            const caseMatch = content.match(/\*\*病例\s*(\d+)\*\*/);
             if (caseMatch) {
                 survey.caseNumber = caseMatch[1];
                 survey.title = `病例 ${caseMatch[1]}`;
             }
             
-            // 患者ID提取
-            const patientIdMatch = content.match(/(?:患者ID|Patient\s*ID|ID)[：:]\s*(P-[\w\d-]+)/i);
-            if (patientIdMatch) {
-                survey.patientId = patientIdMatch[1];
-            }
-            
-            // 治疗药物提取
-            const drugMatch = content.match(/(?:治疗药物|药物|Drug|Medication)[：:]\s*([^\n\r]+)/i);
-            if (drugMatch) {
-                const drugText = drugMatch[1].replace(/\([^)]*\)/g, '').trim();
-                survey.drugs = drugText.split(/[,，、;；]/).map(d => d.trim()).filter(d => d.length > 0);
-            }
-            
-            // 提取完整的患者信息部分
-            const patientSectionMatch = content.match(/\*\*患者临床信息摘要：?\*\*([\s\S]*?)(?=\*\*第一部分|$)/);
-            if (patientSectionMatch) {
-                const patientSection = patientSectionMatch[1];
+            // 从"患者与治疗信息"部分提取
+            const patientTreatmentMatch = content.match(/\*\*患者与治疗信息\*\*([\s\S]*?)(?=\*\*药物信息\*\*)/);
+            if (patientTreatmentMatch) {
+                const patientTreatmentInfo = patientTreatmentMatch[1];
                 
-                // 解析所有患者信息字段
-                const extractInfo = (pattern, field) => {
-                    const match = patientSection.match(new RegExp(pattern, 'im'));
+                // 提取患者ID
+                const patientIdMatch = patientTreatmentInfo.match(/-\s*\*\*患者ID:\*\*\s*(P-[\w\d-]+)/);
+                if (patientIdMatch) {
+                    survey.patientId = patientIdMatch[1];
+                }
+                
+                // 提取治疗药物
+                const drugMatch = patientTreatmentInfo.match(/-\s*\*\*治疗药物:\*\*\s*([^\n\r]+)/);
+                if (drugMatch) {
+                    let drugText = drugMatch[1];
+                    // 移除括号内的英文名称
+                    drugText = drugText.replace(/\s*\([^)]+\)/g, '');
+                    // 移除多余的逗号和空格
+                    drugText = drugText.replace(/[,，]\s*$/, '');
+                    survey.drugs = drugText.split(/[,，]/).map(d => d.trim()).filter(d => d.length > 0);
+                }
+            }
+            
+            // 从"临床与诊断信息"部分提取
+            const clinicalInfoMatch = content.match(/\*\*临床与诊断信息\*\*([\s\S]*?)(?=\*\*样本与基因图谱\*\*|\*\*实验室结果:\*\*)/);
+            if (clinicalInfoMatch) {
+                const clinicalInfo = clinicalInfoMatch[1];
+                
+                const extractClinicalInfo = (label, field) => {
+                    const regex = new RegExp(`-\\s*\\*\\*${label}:\\*\\*\\s*([^\\n\\r]+)`, 'i');
+                    const match = regex.exec(clinicalInfo);
                     if (match) {
                         survey.patientInfo[field] = match[1].trim();
-                        survey.patientInfo.fullInfo[field] = match[1].trim();
                     }
                 };
                 
-                // 基本信息字段
-                extractInfo('(?:性别|Gender)[：:]?\\s*([^\n\r]+)', 'gender');
-                extractInfo('(?:年龄|Age)[：:]?\\s*([^\n\r]+)', 'age');
-                extractInfo('(?:种族|Race)[：:]?\\s*([^\n\r]+)', 'race');
-                extractInfo('(?:吸烟史|Smoking)[：:]?\\s*([^\n\r]+)', 'smoking');
-                extractInfo('(?:诊断|Diagnosis)[：:]\\s*([^\n\r]+)', 'diagnosis');
-                extractInfo('(?:HR状态|HR\\s*Status)[：:]\\s*([^\n\r]+)', 'hrStatus');
-                extractInfo('(?:HER2状态|HER2\\s*Status)[：:]\\s*([^\n\r]+)', 'her2Status');
-                extractInfo('(?:最高记录分期|分期|Stage)[：:]\\s*([^\n\r]+)', 'stage');
-                extractInfo('(?:TMB)[^：:]*[：:]\\s*([^\n\r]+)', 'tmb');
-                extractInfo('(?:MSI状态|MSI)[：:]\\s*([^\n\r]+)', 'msiStatus');
-                extractInfo('(?:既往主要治疗|既往治疗|Previous\\s*Treatment)[：:]\\s*([^\n\r]+)', 'previousTreatment');
-                extractInfo('(?:样本类型|Sample\\s*Type)[：:]\\s*([^\n\r]+)', 'sampleType');
-                extractInfo('(?:癌症类型|Cancer\\s*Type)[：:]\\s*([^\n\r]+)', 'cancerType');
-                
-                // 基因突变信息（完整提取）
-                const mutationMatch = patientSection.match(/(?:关键基因突变|基因突变|Mutations?)[：:]\s*([^\n]+(?:\n(?![*#\-])[^\n]*)*)/i);
-                if (mutationMatch) {
-                    survey.patientInfo.mutations = mutationMatch[1].trim();
-                    survey.patientInfo.fullInfo.mutations = mutationMatch[1].trim();
-                }
-                
-                // 实验室结果
-                const labPatterns = [
-                    { pattern: 'CEA[：:]\\s*([^\n\r]+)', key: 'CEA' },
-                    { pattern: 'CA\\s*15-3[：:]\\s*([^\n\r]+)', key: 'CA15-3' },
-                    { pattern: 'CA\\s*19-9[：:]\\s*([^\n\r]+)', key: 'CA19-9' }
-                ];
-                
-                labPatterns.forEach(({ pattern, key }) => {
-                    const match = patientSection.match(new RegExp(pattern, 'i'));
-                    if (match) {
-                        survey.patientInfo.laboratoryResults[key] = match[1].trim();
-                        survey.patientInfo.fullInfo[key] = match[1].trim();
-                    }
-                });
+                // 提取基本信息
+                extractClinicalInfo('性别', 'gender');
+                extractClinicalInfo('年龄', 'age');
+                extractClinicalInfo('种族', 'race');
+                extractClinicalInfo('族裔', 'ethnicity');
+                extractClinicalInfo('吸烟史', 'smoking');
+                extractClinicalInfo('分期（最高记录）', 'stage');
+                extractClinicalInfo('既往用药状态', 'previousDrugStatus');
+                extractClinicalInfo('既往治疗', 'previousTreatment');
+                extractClinicalInfo('诊断', 'diagnosis');
+                extractClinicalInfo('AJCC分期', 'ajccStage');
+                extractClinicalInfo('临床组别', 'clinicalGroup');
+                extractClinicalInfo('病理组别', 'pathologyGroup');
+                extractClinicalInfo('衍生分期', 'derivedStage');
+                extractClinicalInfo('摘要', 'summary');
             }
             
-            // 提取模型A和模型B的"5. AI生成分析"部分
-            const extractModelAnalysis = (modelName) => {
-                // 首先查找模型报告的起始位置
-                const modelPattern = new RegExp(`\\*\\*${modelName}[：:]?(?:生成的报告)?\\*\\*([\\s\\S]*?)(?=\\*\\*模型[AB]|\\*\\*2\\.1|$)`, 'i');
-                const modelMatch = content.match(modelPattern);
+            // 提取实验室结果
+            const labResultsMatch = content.match(/\*\*实验室结果:\*\*([\s\S]*?)(?=\*\*样本与基因图谱\*\*|---)/);
+            if (labResultsMatch) {
+                const labInfo = labResultsMatch[1];
                 
-                if (modelMatch) {
-                    const modelContent = modelMatch[1];
-                    
-                    // 在模型报告中查找"5. AI生成分析"部分
-                    const analysisPattern = /\*\*5\.\s*AI生成分析\*\*([\s\S]*?)(?=\*\*\d+\.|$)/i;
-                    const analysisMatch = modelContent.match(analysisPattern);
-                    
-                    if (analysisMatch) {
-                        return analysisMatch[1].trim();
-                    } else {
-                        // 如果没有找到"5. AI生成分析"，返回整个模型报告
-                        return modelContent.trim();
-                    }
+                // 提取CEA和CA 15-3结果（支持多个时间点）
+                const ceaMatches = labInfo.match(/-\s*\*\*CEA:\*\*\s*([^\n\r]+)/g);
+                if (ceaMatches && ceaMatches.length > 0) {
+                    const ceaValues = ceaMatches.map(match => 
+                        match.replace(/-\s*\*\*CEA:\*\*\s*/, '').trim()
+                    );
+                    survey.patientInfo.laboratoryResults.CEA = ceaValues.join('; ');
                 }
-                return '';
-            };
+                
+                const ca153Matches = labInfo.match(/-\s*\*\*CA\s*15-3:\*\*\s*([^\n\r]+)/g);
+                if (ca153Matches && ca153Matches.length > 0) {
+                    const ca153Values = ca153Matches.map(match => 
+                        match.replace(/-\s*\*\*CA\s*15-3:\*\*\s*/, '').trim()
+                    );
+                    survey.patientInfo.laboratoryResults['CA 15-3'] = ca153Values.join('; ');
+                }
+                
+                const ca199Matches = labInfo.match(/-\s*\*\*CA\s*19-9:\*\*\s*([^\n\r]+)/g);
+                if (ca199Matches && ca199Matches.length > 0) {
+                    const ca199Values = ca199Matches.map(match => 
+                        match.replace(/-\s*\*\*CA\s*19-9:\*\*\s*/, '').trim()
+                    );
+                    survey.patientInfo.laboratoryResults['CA 19-9'] = ca199Values.join('; ');
+                }
+            }
             
-            survey.modelReports.modelA = extractModelAnalysis('模型A');
-            survey.modelReports.modelB = extractModelAnalysis('模型B');
+            // 从"样本与基因图谱"部分提取
+            const sampleGeneMatch = content.match(/\*\*样本与基因图谱\*\*([\s\S]*?)(?=---|---)/);
+            if (sampleGeneMatch) {
+                const sampleGeneInfo = sampleGeneMatch[1];
+                
+                const extractSampleInfo = (label, field) => {
+                    const regex = new RegExp(`-\\s*\\*\\*${label}:\\*\\*\\s*([^\\n\\r]+)`, 'i');
+                    const match = regex.exec(sampleGeneInfo);
+                    if (match) {
+                        survey.patientInfo[field] = match[1].trim();
+                    }
+                };
+                
+                // 提取样本和基因信息
+                extractSampleInfo('样本ID', 'sampleId');
+                extractSampleInfo('癌症类型', 'cancerType');
+                extractSampleInfo('癌症详细类型', 'cancerDetailType');
+                extractSampleInfo('原发部位', 'primarySite');
+                extractSampleInfo('转移部位', 'metastaticSite');
+                extractSampleInfo('样本类型', 'sampleType');
+                extractSampleInfo('MSI状态', 'msiStatus');
+                extractSampleInfo('MSI评分', 'msiScore');
+                extractSampleInfo('MSI类型', 'msiType');
+                extractSampleInfo('TMB \\(非同义突变\\)', 'tmb');
+                extractSampleInfo('基因突变', 'mutations');
+                extractSampleInfo('结构变异', 'structuralVariants');
+            }
             
-            // 验证解析结果
-            console.log(`解析 ${fileName}:`, {
+            // 提取模型A的分析部分
+            const modelAMatch = content.match(/<summary>点击查看模型A报告全文<\/summary>([\s\S]*?)<\/details>/);
+            if (modelAMatch) {
+                const reportContent = modelAMatch[1];
+                const aiAnalysisMatch = reportContent.match(/\*\*5\.\s*AI生成分析\*\*([\s\S]*?)(?=\*\*注:|\*\*临床意义:|\*\*最终说明:|---|\*\*关键提示|$)/);
+                if (aiAnalysisMatch) {
+                    survey.modelReports.modelA = aiAnalysisMatch[1].trim();
+                }
+            }
+            
+            // 提取模型B的分析部分
+            const modelBMatch = content.match(/<summary>点击查看模型B报告全文<\/summary>([\s\S]*?)<\/details>/);
+            if (modelBMatch) {
+                const reportContent = modelBMatch[1];
+                const aiAnalysisMatch = reportContent.match(/\*\*5\.\s*AI生成分析\*\*([\s\S]*?)(?=\*\*注:|\*\*临床意义:|\*\*最终说明:|---|\*\*关键提示|$)/);
+                if (aiAnalysisMatch) {
+                    survey.modelReports.modelB = aiAnalysisMatch[1].trim();
+                }
+            }
+            
+            // 详细调试输出
+            console.log(`=== 解析 ${fileName} (新格式) ===`);
+            console.log('病例信息:', {
+                title: survey.title,
                 patientId: survey.patientId,
-                drugs: survey.drugs,
+                drugs: survey.drugs
+            });
+            console.log('基本信息:', {
+                gender: survey.patientInfo.gender,
+                age: survey.patientInfo.age,
+                race: survey.patientInfo.race,
+                diagnosis: survey.patientInfo.diagnosis
+            });
+            console.log('分期信息:', {
+                stage: survey.patientInfo.stage,
+                ajccStage: survey.patientInfo.ajccStage,
+                clinicalGroup: survey.patientInfo.clinicalGroup
+            });
+            console.log('治疗信息:', {
+                previousTreatment: survey.patientInfo.previousTreatment,
+                tmb: survey.patientInfo.tmb
+            });
+            console.log('实验室结果:', survey.patientInfo.laboratoryResults);
+            console.log('模型报告:', {
                 hasModelA: !!survey.modelReports.modelA,
                 hasModelB: !!survey.modelReports.modelB,
-                patientInfoFields: Object.keys(survey.patientInfo.fullInfo)
+                modelALength: survey.modelReports.modelA.length,
+                modelBLength: survey.modelReports.modelB.length
             });
             
             return survey;
@@ -1702,13 +1763,13 @@
                 pageHeader.textContent = `${survey.title || survey.fileName} - 药物反应预测评估`;
             }
             
-            // 生成完整患者信息
+            // 生成患者信息
             const patientInfoContainer = document.getElementById('patient-info-grid');
             if (patientInfoContainer) {
-                patientInfoContainer.innerHTML = generateCompletePatientInfoHTML(survey, patientInfo, drugsText);
+                patientInfoContainer.innerHTML = generatePatientInfoHTML(survey, patientInfo, drugsText);
             }
             
-            // 更新模型报告（仅显示AI生成分析部分）
+            // 更新模型报告
             updateModelReports(survey.modelReports);
             
             // 重置表单
@@ -1725,66 +1786,71 @@
             updateProgress();
         }
 
-        // 生成完整患者信息HTML
-        function generateCompletePatientInfoHTML(survey, patientInfo, drugsText) {
+        // 生成患者信息HTML
+        function generatePatientInfoHTML(survey, patientInfo, drugsText) {
             let html = '';
             
-            // 基本信息
+            // 基本标识信息
             html += createInfoItem('患者ID', survey.patientId);
             html += createInfoItem('治疗药物', drugsText);
             
-            // 使用fullInfo中的所有信息，如果没有则使用基本字段
-            const infoToShow = patientInfo.fullInfo || patientInfo;
+            // 基本信息
+            if (patientInfo.gender) html += createInfoItem('性别', patientInfo.gender);
+            if (patientInfo.age) html += createInfoItem('年龄', patientInfo.age);
+            if (patientInfo.race) html += createInfoItem('种族', patientInfo.race);
+            if (patientInfo.ethnicity) html += createInfoItem('族裔', patientInfo.ethnicity);
+            if (patientInfo.smoking) html += createInfoItem('吸烟史', patientInfo.smoking);
             
-            // 按类别显示信息
-            const categories = [
-                { title: '基本信息', fields: ['gender', 'age', 'race', 'smoking'] },
-                { title: '诊断信息', fields: ['diagnosis', 'hrStatus', 'her2Status', 'stage'] },
-                { title: '基因信息', fields: ['tmb', 'msiStatus', 'mutations'] },
-                { title: '治疗信息', fields: ['previousTreatment', 'sampleType', 'cancerType'] },
-                { title: '实验室结果', fields: ['CEA', 'CA15-3', 'CA19-9'] }
-            ];
+            // 诊断与分期
+            if (patientInfo.diagnosis) html += createInfoItem('诊断', patientInfo.diagnosis);
+            if (patientInfo.stage) html += createInfoItem('分期（最高记录）', patientInfo.stage);
+            if (patientInfo.ajccStage) html += createInfoItem('AJCC分期', patientInfo.ajccStage);
+            if (patientInfo.clinicalGroup) html += createInfoItem('临床组别', patientInfo.clinicalGroup);
+            if (patientInfo.pathologyGroup) html += createInfoItem('病理组别', patientInfo.pathologyGroup);
+            if (patientInfo.derivedStage) html += createInfoItem('衍生分期', patientInfo.derivedStage);
+            if (patientInfo.summary) html += createInfoItem('摘要', patientInfo.summary);
             
-            categories.forEach(category => {
-                const categoryItems = [];
-                category.fields.forEach(field => {
-                    const value = infoToShow[field] || patientInfo.laboratoryResults?.[field];
-                    if (value) {
-                        categoryItems.push(createInfoItem(getFieldDisplayName(field), value));
-                    }
-                });
-                
-                if (categoryItems.length > 0) {
-                    html += `<div style="grid-column: 1/-1; margin-top: 1rem; margin-bottom: 0.5rem; font-weight: bold; color: #667eea; border-bottom: 1px solid #eee; padding-bottom: 0.5rem;">${category.title}</div>`;
-                    html += categoryItems.join('');
+            // 治疗相关
+            if (patientInfo.previousDrugStatus) html += createInfoItem('既往用药状态', patientInfo.previousDrugStatus);
+            if (patientInfo.previousTreatment) html += createInfoItem('既往治疗', patientInfo.previousTreatment);
+            
+            // 生物标志物
+            if (patientInfo.hrStatus) html += createInfoItem('HR状态', patientInfo.hrStatus);
+            if (patientInfo.her2Status) html += createInfoItem('HER2状态', patientInfo.her2Status);
+            
+            // 基因信息
+            if (patientInfo.tmb) html += createInfoItem('TMB (非同义突变)', patientInfo.tmb);
+            if (patientInfo.msiStatus) html += createInfoItem('MSI状态', patientInfo.msiStatus);
+            if (patientInfo.msiScore) html += createInfoItem('MSI评分', patientInfo.msiScore);
+            if (patientInfo.msiType) html += createInfoItem('MSI类型', patientInfo.msiType);
+            if (patientInfo.structuralVariants) html += createInfoItem('结构变异', patientInfo.structuralVariants);
+            
+            // 样本信息
+            if (patientInfo.sampleId) html += createInfoItem('样本ID', patientInfo.sampleId);
+            if (patientInfo.cancerType) html += createInfoItem('癌症类型', patientInfo.cancerType);
+            if (patientInfo.cancerDetailType) html += createInfoItem('癌症详细类型', patientInfo.cancerDetailType);
+            if (patientInfo.primarySite) html += createInfoItem('原发部位', patientInfo.primarySite);
+            if (patientInfo.metastaticSite) html += createInfoItem('转移部位', patientInfo.metastaticSite);
+            if (patientInfo.sampleType) html += createInfoItem('样本类型', patientInfo.sampleType);
+            
+            // 实验室结果
+            if (patientInfo.laboratoryResults && Object.keys(patientInfo.laboratoryResults).length > 0) {
+                for (const [key, value] of Object.entries(patientInfo.laboratoryResults)) {
+                    if (value) html += createInfoItem(key, value);
                 }
-            });
+            }
+            
+            // 基因突变 (放在最后，可能很长)
+            if (patientInfo.mutations) {
+                html += `
+                    <div class="info-item" style="grid-column: 1 / -1;">
+                        <div class="info-label">基因突变</div>
+                        <div class="info-value" style="word-break: break-all; line-height: 1.4;">${patientInfo.mutations}</div>
+                    </div>
+                `;
+            }
             
             return html;
-        }
-
-        // 获取字段显示名称
-        function getFieldDisplayName(field) {
-            const fieldNames = {
-                'gender': '性别',
-                'age': '年龄',
-                'race': '种族',
-                'smoking': '吸烟史',
-                'diagnosis': '诊断',
-                'hrStatus': 'HR状态',
-                'her2Status': 'HER2状态',
-                'stage': '分期',
-                'tmb': 'TMB',
-                'msiStatus': 'MSI状态',
-                'mutations': '关键基因突变',
-                'previousTreatment': '既往主要治疗',
-                'sampleType': '样本类型',
-                'cancerType': '癌症类型',
-                'CEA': 'CEA',
-                'CA15-3': 'CA 15-3',
-                'CA19-9': 'CA 19-9'
-            };
-            return fieldNames[field] || field;
         }
 
         // 创建信息项HTML
@@ -1816,7 +1882,7 @@
 
         // 格式化模型报告
         function formatModelReport(reportText) {
-            if (!reportText) return '<p>暂无报告内容</p>';
+            if (!reportText) return '';
             
             return reportText
                 .replace(/\n\n/g, '</p><p>')
@@ -1961,8 +2027,6 @@
             
             // 添加评分数据
             data.ratings = surveyData.ratings;
-            data.reasoning = document.getElementById('reasoning')?.value || '';
-            data.preferenceReason = document.getElementById('preference-reason')?.value || '';
             data.additionalFeedback = document.getElementById('additional-feedback')?.value || '';
             data.timestamp = new Date().toISOString();
             data.doctorInfo = userData.currentUser;
