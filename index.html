@@ -1508,6 +1508,7 @@
                     gender: '',
                     age: '',
                     race: '',
+                    ethnicity: '',
                     smoking: '',
                     diagnosis: '',
                     hrStatus: '',
@@ -1515,10 +1516,19 @@
                     stage: '',
                     tmb: '',
                     msiStatus: '',
+                    msiScore: '',
                     mutations: '',
                     previousTreatment: '',
                     sampleType: '',
                     cancerType: '',
+                    cancerDetailType: '',
+                    primarySite: '',
+                    sampleId: '',
+                    structuralVariants: '',
+                    clinicalGroup: '',
+                    pathologyGroup: '',
+                    derivedStage: '',
+                    summary: '',
                     laboratoryResults: {}
                 },
                 modelReports: {
@@ -1527,76 +1537,163 @@
                 }
             };
             
-            // 基本信息提取
-            const caseMatch = content.match(/(?:病例|Case)\s*[：:]?\s*(\d+)/i);
+            // 提取病例编号
+            const caseMatch = content.match(/(?:\*\*病例|病例)\s*(\d+)\*\*/);
             if (caseMatch) {
                 survey.caseNumber = caseMatch[1];
                 survey.title = `病例 ${caseMatch[1]}`;
             }
             
-            // 患者ID提取（支持多种格式）
-            const patientIdMatch = content.match(/(?:患者ID|Patient\s*ID|ID)[：:]\s*(P-[\w\d-]+)/i);
+            // 提取患者ID
+            const patientIdMatch = content.match(/[\-\*\s]*患者ID[：:]\s*(P-[\w\d-]+)/);
             if (patientIdMatch) {
                 survey.patientId = patientIdMatch[1];
             }
             
-            // 治疗药物提取（支持多种格式）
-            const drugMatch = content.match(/(?:治疗药物|药物|Drug|Medication)[：:]\s*([^\n\r]+)/i);
+            // 提取治疗药物
+            const drugMatch = content.match(/[\-\*\s]*治疗药物[：:]\s*([^\n\r]+)/);
             if (drugMatch) {
-                const drugText = drugMatch[1].replace(/\([^)]*\)/g, ''); // 移除括号内容
-                survey.drugs = drugText.split(/[,，、;；]/).map(d => d.trim()).filter(d => d.length > 0);
+                let drugText = drugMatch[1];
+                // 移除括号内的英文名称，保留中文名称
+                drugText = drugText.replace(/\s*\([^)]*\)/g, '');
+                survey.drugs = drugText.split(/[,，]/).map(d => d.trim()).filter(d => d.length > 0);
             }
             
-            // 患者基本信息提取
-            const extractPatientInfo = (pattern, field) => {
-                const match = content.match(new RegExp(pattern, 'i'));
-                if (match) survey.patientInfo[field] = match[1].trim();
+            // 提取基本信息部分
+            const basicInfoMatch = content.match(/\*\*基本信息:\*\*([\s\S]*?)(?=\*\*诊断与分期|\*\*既往主要治疗|\*\*基因图谱)/);
+            if (basicInfoMatch) {
+                const basicInfo = basicInfoMatch[1];
+                const extractBasicInfo = (pattern, field) => {
+                    const match = basicInfo.match(new RegExp(`-\\s*${pattern}[：:]\\s*([^\n\r]+)`, 'g'));
+                    if (match && match[0]) {
+                        const value = match[0].replace(new RegExp(`-\\s*${pattern}[：:]\\s*`), '').trim();
+                        survey.patientInfo[field] = value;
+                    }
+                };
+                
+                extractBasicInfo('性别', 'gender');
+                extractBasicInfo('年龄', 'age');
+                extractBasicInfo('种族', 'race');
+                extractBasicInfo('族裔', 'ethnicity');
+                extractBasicInfo('吸烟史', 'smoking');
+            }
+            
+            // 提取诊断与分期部分
+            const diagnosisMatch = content.match(/\*\*诊断与分期:\*\*([\s\S]*?)(?=\*\*既往主要治疗|\*\*基因图谱)/);
+            if (diagnosisMatch) {
+                const diagnosisInfo = diagnosisMatch[1];
+                const extractDiagnosisInfo = (pattern, field) => {
+                    const match = diagnosisInfo.match(new RegExp(`-\\s*${pattern}[：:]\\s*([^\n\r]+)`, 'g'));
+                    if (match && match[0]) {
+                        const value = match[0].replace(new RegExp(`-\\s*${pattern}[：:]\\s*`), '').trim();
+                        survey.patientInfo[field] = value;
+                    }
+                };
+                
+                extractDiagnosisInfo('诊断', 'diagnosis');
+                extractDiagnosisInfo('HR状态', 'hrStatus');
+                extractDiagnosisInfo('HER2状态', 'her2Status');
+                extractDiagnosisInfo('最高记录分期', 'stage');
+                extractDiagnosisInfo('临床组别', 'clinicalGroup');
+                extractDiagnosisInfo('病理组别', 'pathologyGroup');
+                extractDiagnosisInfo('衍生分期', 'derivedStage');
+                extractDiagnosisInfo('摘要', 'summary');
+            }
+            
+            // 提取既往治疗
+            const treatmentMatch = content.match(/\*\*既往主要治疗:\*\*\s*([^\n\r]+)/);
+            if (treatmentMatch) {
+                survey.patientInfo.previousTreatment = treatmentMatch[1].trim();
+            }
+            
+            // 提取基因图谱信息
+            const geneMatch = content.match(/\*\*基因图谱:\*\*([\s\S]*?)(?=\*\*1\.1|---)/);
+            if (geneMatch) {
+                const geneInfo = geneMatch[1];
+                
+                const tmbMatch = geneInfo.match(/-\s*TMB[^：:]*[：:]\s*([^\n\r]+)/);
+                if (tmbMatch) survey.patientInfo.tmb = tmbMatch[1].trim();
+                
+                const mutationMatch = geneInfo.match(/-\s*关键基因突变[：:]\s*([^\n\r]+)/);
+                if (mutationMatch) survey.patientInfo.mutations = mutationMatch[1].trim();
+                
+                const msiMatch = geneInfo.match(/-\s*MSI状态[：:]\s*([^\n\r]+)/);
+                if (msiMatch) survey.patientInfo.msiStatus = msiMatch[1].trim();
+                
+                const msiScoreMatch = geneInfo.match(/-\s*MSI评分[：:]\s*([^\n\r]+)/);
+                if (msiScoreMatch) survey.patientInfo.msiScore = msiScoreMatch[1].trim();
+            }
+            
+            // 从详细报告中提取更多信息（如实验室结果）
+            const extractLabResults = () => {
+                // CEA结果
+                const ceaMatch = content.match(/CEA[：:]?\s*([^\n\r,，]+)/);
+                if (ceaMatch) survey.patientInfo.laboratoryResults.CEA = ceaMatch[1].trim();
+                
+                // CA 15-3结果
+                const ca153Match = content.match(/CA\s*15-3[：:]?\s*([^\n\r,，]+)/);
+                if (ca153Match) survey.patientInfo.laboratoryResults['CA 15-3'] = ca153Match[1].trim();
+                
+                // CA 19-9结果
+                const ca199Match = content.match(/CA\s*19-9[：:]?\s*([^\n\r,，]+)/);
+                if (ca199Match) survey.patientInfo.laboratoryResults['CA 19-9'] = ca199Match[1].trim();
+                
+                // 样本信息
+                const sampleIdMatch = content.match(/样本ID[：:]\s*([^\n\r（]+)/);
+                if (sampleIdMatch) survey.patientInfo.sampleId = sampleIdMatch[1].trim();
+                
+                const cancerTypeMatch = content.match(/癌症类型[：:]\s*([^\n\r]+)/);
+                if (cancerTypeMatch) survey.patientInfo.cancerType = cancerTypeMatch[1].trim();
+                
+                const cancerDetailMatch = content.match(/癌症详细类型[：:]\s*([^\n\r]+)/);
+                if (cancerDetailMatch) survey.patientInfo.cancerDetailType = cancerDetailMatch[1].trim();
+                
+                const primarySiteMatch = content.match(/原发部位[：:]\s*([^\n\r]+)/);
+                if (primarySiteMatch) survey.patientInfo.primarySite = primarySiteMatch[1].trim();
+                
+                const sampleTypeMatch = content.match(/样本类型[：:]\s*([^\n\r]+)/);
+                if (sampleTypeMatch) survey.patientInfo.sampleType = sampleTypeMatch[1].trim();
+                
+                const structuralMatch = content.match(/结构变异[：:]\s*([^\n\r]+)/);
+                if (structuralMatch) survey.patientInfo.structuralVariants = structuralMatch[1].trim();
             };
             
-            extractPatientInfo('(?:性别|Gender)[：:]?\\s*([^\n\r]+)', 'gender');
-            extractPatientInfo('(?:年龄|Age)[：:]?\\s*([^\n\r]+)', 'age');
-            extractPatientInfo('(?:种族|Race)[：:]?\\s*([^\n\r]+)', 'race');
-            extractPatientInfo('(?:吸烟史|Smoking)[：:]?\\s*([^\n\r]+)', 'smoking');
-            extractPatientInfo('(?:诊断|Diagnosis)[：:]\\s*([^\n\r]+)', 'diagnosis');
-            extractPatientInfo('(?:HR状态|HR\\s*Status)[：:]\\s*([^\n\r]+)', 'hrStatus');
-            extractPatientInfo('(?:HER2状态|HER2\\s*Status)[：:]\\s*([^\n\r]+)', 'her2Status');
-            extractPatientInfo('(?:最高记录分期|分期|Stage)[：:]\\s*([^\n\r]+)', 'stage');
-            extractPatientInfo('(?:TMB)[^：:]*[：:]\\s*([^\n\r]+)', 'tmb');
-            extractPatientInfo('(?:MSI状态|MSI)[：:]\\s*([^\n\r]+)', 'msiStatus');
-            extractPatientInfo('(?:关键基因突变|基因突变|Mutations?)[：:]\\s*([^\n\r]+)', 'mutations');
-            extractPatientInfo('(?:既往主要治疗|既往治疗|Previous\\s*Treatment)[：:]\\s*([^\n\r]+)', 'previousTreatment');
-            extractPatientInfo('(?:样本类型|Sample\\s*Type)[：:]\\s*([^\n\r]+)', 'sampleType');
-            extractPatientInfo('(?:癌症类型|Cancer\\s*Type)[：:]\\s*([^\n\r]+)', 'cancerType');
+            extractLabResults();
             
-            // 实验室结果提取
-            const labMatches = [
-                { pattern: 'CEA[：:]\\s*([^\n\r]+)', key: 'CEA' },
-                { pattern: 'CA\\s*15-3[：:]\\s*([^\n\r]+)', key: 'CA 15-3' },
-                { pattern: 'CA\\s*19-9[：:]\\s*([^\n\r]+)', key: 'CA 19-9' }
-            ];
+            // 提取模型A的AI分析部分
+            const extractModelAnalysis = (modelName) => {
+                // 首先找到模型报告的<details>标签内容
+                const detailsPattern = new RegExp(`\\*\\*模型${modelName}：生成的报告\\*\\*[\\s\\S]*?<details>[\\s\\S]*?<summary>[\\s\\S]*?</summary>([\\s\\S]*?)</details>`, 'i');
+                const detailsMatch = content.match(detailsPattern);
+                
+                if (detailsMatch) {
+                    const reportContent = detailsMatch[1];
+                    // 提取"5. AI生成分析"部分
+                    const aiAnalysisMatch = reportContent.match(/\*\*5\.\s*AI生成分析\*\*([\s\S]*?)(?=\*\*注|$)/);
+                    if (aiAnalysisMatch) {
+                        return aiAnalysisMatch[1].trim();
+                    }
+                }
+                return '';
+            };
             
-            labMatches.forEach(({ pattern, key }) => {
-                const match = content.match(new RegExp(pattern, 'i'));
-                if (match) survey.patientInfo.laboratoryResults[key] = match[1].trim();
-            });
-            
-            // 模型报告提取（改进的正则表达式）
-            const modelAMatch = content.match(/(?:\*\*)?(?:模型A|Model\s*A)[：:]?(?:生成的报告|Report)?(?:\*\*)?([\s\S]*?)(?=(?:\*\*)?(?:模型B|Model\s*B)|$)/i);
-            if (modelAMatch) {
-                survey.modelReports.modelA = modelAMatch[1].trim();
-            }
-            
-            const modelBMatch = content.match(/(?:\*\*)?(?:模型B|Model\s*B)[：:]?(?:生成的报告|Report)?(?:\*\*)?([\s\S]*?)(?=\*\*2\.1|$)/i);
-            if (modelBMatch) {
-                survey.modelReports.modelB = modelBMatch[1].trim();
-            }
+            survey.modelReports.modelA = extractModelAnalysis('A');
+            survey.modelReports.modelB = extractModelAnalysis('B');
             
             // 验证解析结果
             console.log(`解析 ${fileName}:`, {
+                title: survey.title,
                 patientId: survey.patientId,
                 drugs: survey.drugs,
+                basicInfo: {
+                    gender: survey.patientInfo.gender,
+                    age: survey.patientInfo.age,
+                    diagnosis: survey.patientInfo.diagnosis
+                },
                 hasModelA: !!survey.modelReports.modelA,
-                hasModelB: !!survey.modelReports.modelB
+                hasModelB: !!survey.modelReports.modelB,
+                modelALength: survey.modelReports.modelA.length,
+                modelBLength: survey.modelReports.modelB.length
             });
             
             return survey;
