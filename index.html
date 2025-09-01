@@ -864,6 +864,11 @@
                             </div>
                         </div>
 
+                        <div class="form-group">
+                            <label class="form-label" for="reasoning">1.2 您的主要判断依据是什么？（可选）</label>
+                            <textarea class="form-control" id="reasoning" rows="4" placeholder="请简述影响您判断的关键因素，如特定基因突变、TMB状态、既往治疗史等"></textarea>
+                        </div>
+
                         <!-- 第二部分：模型输出质量评估 -->
                         <div class="section-title">第二部分：模型输出文本质量评估</div>
 
@@ -1069,6 +1074,11 @@
                                     <strong>两者无明显差异</strong>
                                 </label>
                             </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="preference-reason">2.3 请简要说明您做出偏好选择的理由（可选）</label>
+                            <textarea class="form-control" id="preference-reason" rows="4" placeholder="请说明您的选择理由"></textarea>
                         </div>
 
                         <!-- 其他反馈 -->
@@ -1790,65 +1800,13 @@
         function generatePatientInfoHTML(survey, patientInfo, drugsText) {
             let html = '';
             
-            // 基本标识信息
             html += createInfoItem('患者ID', survey.patientId);
             html += createInfoItem('治疗药物', drugsText);
             
-            // 基本信息
+            // 其他患者信息...
             if (patientInfo.gender) html += createInfoItem('性别', patientInfo.gender);
             if (patientInfo.age) html += createInfoItem('年龄', patientInfo.age);
-            if (patientInfo.race) html += createInfoItem('种族', patientInfo.race);
-            if (patientInfo.ethnicity) html += createInfoItem('族裔', patientInfo.ethnicity);
-            if (patientInfo.smoking) html += createInfoItem('吸烟史', patientInfo.smoking);
-            
-            // 诊断与分期
             if (patientInfo.diagnosis) html += createInfoItem('诊断', patientInfo.diagnosis);
-            if (patientInfo.stage) html += createInfoItem('分期（最高记录）', patientInfo.stage);
-            if (patientInfo.ajccStage) html += createInfoItem('AJCC分期', patientInfo.ajccStage);
-            if (patientInfo.clinicalGroup) html += createInfoItem('临床组别', patientInfo.clinicalGroup);
-            if (patientInfo.pathologyGroup) html += createInfoItem('病理组别', patientInfo.pathologyGroup);
-            if (patientInfo.derivedStage) html += createInfoItem('衍生分期', patientInfo.derivedStage);
-            if (patientInfo.summary) html += createInfoItem('摘要', patientInfo.summary);
-            
-            // 治疗相关
-            if (patientInfo.previousDrugStatus) html += createInfoItem('既往用药状态', patientInfo.previousDrugStatus);
-            if (patientInfo.previousTreatment) html += createInfoItem('既往治疗', patientInfo.previousTreatment);
-            
-            // 生物标志物
-            if (patientInfo.hrStatus) html += createInfoItem('HR状态', patientInfo.hrStatus);
-            if (patientInfo.her2Status) html += createInfoItem('HER2状态', patientInfo.her2Status);
-            
-            // 基因信息
-            if (patientInfo.tmb) html += createInfoItem('TMB (非同义突变)', patientInfo.tmb);
-            if (patientInfo.msiStatus) html += createInfoItem('MSI状态', patientInfo.msiStatus);
-            if (patientInfo.msiScore) html += createInfoItem('MSI评分', patientInfo.msiScore);
-            if (patientInfo.msiType) html += createInfoItem('MSI类型', patientInfo.msiType);
-            if (patientInfo.structuralVariants) html += createInfoItem('结构变异', patientInfo.structuralVariants);
-            
-            // 样本信息
-            if (patientInfo.sampleId) html += createInfoItem('样本ID', patientInfo.sampleId);
-            if (patientInfo.cancerType) html += createInfoItem('癌症类型', patientInfo.cancerType);
-            if (patientInfo.cancerDetailType) html += createInfoItem('癌症详细类型', patientInfo.cancerDetailType);
-            if (patientInfo.primarySite) html += createInfoItem('原发部位', patientInfo.primarySite);
-            if (patientInfo.metastaticSite) html += createInfoItem('转移部位', patientInfo.metastaticSite);
-            if (patientInfo.sampleType) html += createInfoItem('样本类型', patientInfo.sampleType);
-            
-            // 实验室结果
-            if (patientInfo.laboratoryResults && Object.keys(patientInfo.laboratoryResults).length > 0) {
-                for (const [key, value] of Object.entries(patientInfo.laboratoryResults)) {
-                    if (value) html += createInfoItem(key, value);
-                }
-            }
-            
-            // 基因突变 (放在最后，可能很长)
-            if (patientInfo.mutations) {
-                html += `
-                    <div class="info-item" style="grid-column: 1 / -1;">
-                        <div class="info-label">基因突变</div>
-                        <div class="info-value" style="word-break: break-all; line-height: 1.4;">${patientInfo.mutations}</div>
-                    </div>
-                `;
-            }
             
             return html;
         }
@@ -2027,6 +1985,8 @@
             
             // 添加评分数据
             data.ratings = surveyData.ratings;
+            data.reasoning = document.getElementById('reasoning')?.value || '';
+            data.preferenceReason = document.getElementById('preference-reason')?.value || '';
             data.additionalFeedback = document.getElementById('additional-feedback')?.value || '';
             data.timestamp = new Date().toISOString();
             data.doctorInfo = userData.currentUser;
